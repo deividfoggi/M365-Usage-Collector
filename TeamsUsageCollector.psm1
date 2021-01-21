@@ -18,7 +18,7 @@
   Collects information related to Teams usage from a M365 tenant.
 
  .Description
-  Export to .csv files information related to Teams usage in the contexts of user activity, user activation and licensing.
+  Display or export to .csv files information related to Teams usage in the contexts of user activity, user activation and licensing.
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 
  .Example
@@ -33,8 +33,9 @@
 
    # Get Teams usage per user
    Get-TeamsUsageReport -ReportMode "PerUser" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
-
-   # To export data to .csv, use the parameter -Export $true in any of the above options
+   
+   # Export summary and per user reports to csv files
+   Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
 #Requisites check
@@ -47,6 +48,67 @@ If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
     Install-Module AzureAD
 }else{
     Import-Module AzureAD
+}
+
+Function ConnectAzureAD{
+    try{
+        Get-AzureADTenantDetail -ErrorAction Stop | Out-Null
+        Write-Host "Azure AD already connected"
+    }
+    catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
+    {
+        Write-Warning "Connecting to Azure AD"
+        Connect-AzureAD
+    }
+}
+
+Function Create-TeamsUsageApplication {
+
+        #### Collect all the permissions first ####
+        $appPerms = 'Reports.Read.All','User.Read.All'
+        $replyUrls = "https://login.microsoftonline.com/common/oauth2/nativeclient"
+
+        $msGraphService = Get-AzureADServicePrincipal -All $true -Filter "DisplayName eq 'Microsoft Graph'"
+        $permissions = $msGraphService.AppRoles.Where({$_.Value -in $appPerms})
+            
+        $msGraphResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAd.Model.RequiredResourceAccess"
+        $msGraphResourceAccess.ResourceAppId = $msGraphService.AppId
+
+        foreach($permission in $permissions){
+            $appPermissions = new-object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $permission.Id,"Role"
+            $msGraphResourceAccess.ResourceAccess += $appPermissions
+        }
+
+        #### Create the app with all the permissions ####
+        $appName = "Teams Usage Collector"
+        $appCreationParameters = @{
+            "DisplayName" = $appName;
+            "RequiredResourceAccess" = @($msGraphResourceAccess)
+            "ReplyUrls" = $replyUrls
+        }
+
+        $appCreated = New-AzureADApplication @appCreationParameters
+        $startDate = Get-Date
+        $endDate = $startDate.AddYears(3)
+        $appReg = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
+
+        $objAppReg = [PSCustomObject]@{
+            ObjectId = $appCreated.ObjectId
+            AppId = $appCreated.AppId
+            TenantId = (Get-AzureADTenantDetail).ObjectId
+            ClientSecret = $appReg.Value
+        }
+
+        #$objAppReg| Export-Csv .\AppRegInfo -NoTypeInformation
+
+        Write-Host "Application $appName created successfully in your tenant. Take not of the following information. If you lost one of them, ask you tenant admin to get it for you in Azure AD:
+            AppId: $($objAppReg.AppId)
+            TenantId: $($objAppReg.TenantId)
+            ClientSecret: $($objAppReg.ClientSecret)
+        
+        " -Foreground Green
+        Write-Host "Azure Admin should consent using the following link:" -Foreground Yellow
+        Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
 
 Function Send-GraphRequest{
@@ -83,16 +145,13 @@ Function Send-GraphRequest{
         Write-Warning -Message $_.Exception.Message
     }
 }
-
 Function Get-LicenseSkuReport {
 
     Param(
-        [Parameter(Mandatory=$true)]$Export
+        [Parameter(Mandatory=$false)]$Export
     )
 
-    if(!(Get-AzureADTenantDetail)){
-        Connect-AzureAD
-    }
+    ConnectAzureAD
 
     $licensesRequest = Get-AzureADSubscribedSku | Select-Object SkuPartNumber,*Units
 
@@ -101,38 +160,39 @@ Function Get-LicenseSkuReport {
     foreach($sku in $licensesRequest){
 
         $objLicense = [PSCustomObject] @{
-            "ConsumedUnits" = $sku.ConsumedUnits
-            "EnabledUnits" = $sku.PrepaidUnits.Enabled
             "Sku" = $sku.SkuPartNumber
+            "EnabledUnits" = $sku.PrepaidUnits.Enabled
+            "ConsumedUnits" = $sku.ConsumedUnits            
         }
         $licenseReport += $objLicense
     }
     if($Export -eq $true){
         $licenseReport | Export-Csv .\LicenseReport.csv -NoTypeInformation
     }else{
-        return $licenseReport
+        return $licenseReport|Format-Table
     }
 }
-
-
 Function Get-TeamsUsageReport{
 
     Param(
-        [Parameter(Mandatory=$true)]$ClientID,
+        [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
-        [Parameter(Mandatory=$true)]$ReportMode,
-        [Parameter(Mandatory=$false)]$Export
+        [Parameter(Mandatory=$true)]$ReportMode
     )
 
     #Following 3 lines are for test only and should be removed on final version
-    $clientId = "36533c7a-40cd-4f71-8362-c121dbc19b8a"
+    <#
+    $AppId = "36533c7a-40cd-4f71-8362-c121dbc19b8a"
     $clientSecret = (ConvertTo-SecureString "T__.n-jXkom_SM3uP2t2enBB~~dkBVFRd5" -AsPlainText -Force)
     $tenantId = "cdcae3ff-a663-4732-9cf5-1e33db81acf1"
+    #>
+
     
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
-    $users = Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
+    
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force)-TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $users = Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
 
@@ -142,9 +202,11 @@ Function Get-TeamsUsageReport{
         $office365ActiveUserDetailUser = $office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
 
         $userObj = [PSCustomObject] @{
-            UserPrincipalName = $user.UserPrincipalName
+            <#Sanitized attributes#>
+            UserPrincipalName = "Sanitized" # $user.UserPrincipalName
+            DisplayName = "Sanitized" # $office365ActiveUserDetailUser.'Display Name'
+            <#End of Sanitized attributes#>
             Department = $user.Department
-            DisplayName = $office365ActiveUserDetailUser.'Display Name'
             IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
             DeletedDate = $office365ActiveUserDetailUser.'Deleted Date'
             HasExchangeLicense = $office365ActiveUserDetailUser.'Has Exchange License'
@@ -205,14 +267,7 @@ Function Get-TeamsUsageReport{
     }
 
     if($Export -eq $true){
-        switch($ReportMode){
-            "SummaryOnly" {
-                $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
-            }
-            "PerUser" {
-                $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
-            }
-        }
+
     }
     else{
         switch($ReportMode){
@@ -224,9 +279,19 @@ Function Get-TeamsUsageReport{
                 $TeamsUsagePerUser = $joinedObjects
                 return $TeamsUsagePerUser
             }
+            "Export"{
+                $summaryReportName = "TeamsUsageData_Summary.csv"
+                $perUserReportName = "TeamsUsageData_PerUser.csv"
+                $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
+                $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
+                Write-Host "Report saved in the following files:
+                    Summarized report - $((Get-Item $summaryReportName).FullName)
+                    Per user report - $((Get-Item $perUserReportName).FullName)."
+            }
         }
     }
 }
 
 Export-ModuleMember -Function Get-LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
+Export-ModuleMember -Function Create-TeamsUsageApplication
