@@ -61,60 +61,54 @@ Function ConnectAzureAD{
     }
 }
 
-Function CreateApplication([guid]$ExistingApplicationId) {
-    
-    ConnectAzureAD
+Function Create-TeamsUsageApplication {
 
-    if ([guid]::Empty -ne $ExistingApplicationId) {
-        $existingApp = Get-AzureADApplication -Filter "AppId eq '$ExistingApplicationId'"
-        if ($Null -ne $existingApp) {
-            Write-Warning "Existing application '$ExistingApplicationId' found. Skipping new application creation."
-            return (Get-AzureADTenantDetail).ObjectId, $existingApp
-        }
-        else{
+        #### Collect all the permissions first ####
+        $appPerms = 'Reports.Read.All','User.Read.All'
+        $replyUrls = "https://login.microsoftonline.com/common/oauth2/nativeclient"
 
-            #### Collect all the permissions first ####
-            $appPerms = 'Reports.Read.All','User.Read.All'
-            Get-AzureADServicePrincipal -Filter "DisplayName eq 'MicrosoftGraph'"
-            Get-AzureADServicePrincipal -Filter "DisplayName eq 'Microsoft Graph'"
-
-            $msGraphService = Get-AzureADServicePrincipal -Filter "DisplayName eq 'Microsoft Graph'"
-            $permissions = $msGraphService.AppRoles.Where({$_.Value -in $appPerms})
+        $msGraphService = Get-AzureADServicePrincipal -All $true -Filter "DisplayName eq 'Microsoft Graph'"
+        $permissions = $msGraphService.AppRoles.Where({$_.Value -in $appPerms})
             
-            $msGraphResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAd.Model.RequiredResourceAccess"
-            $msGraphResourceAccess.ResourceAppId = $msGraphService.AppId
+        $msGraphResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAd.Model.RequiredResourceAccess"
+        $msGraphResourceAccess.ResourceAppId = $msGraphService.AppId
 
-            foreach($permission in $permissions){
-                $appPermissions = new-object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $p.Id,"Role"
-                $msGraphResourceAccess.ResourceAccess += $appPermissions
-            }
-            #### Create the app with all the permissions ####
-            $appName = "Teams Usage Collector"
-            $appCreationParameters = @{
-                "AvailableToOtherTenants" = $false;
-                "DisplayName" = $appName;
-                "RequiredResourceAccess" = $msGraphResourceAccess.ResourceAccess
-            }
-
-            $appCreated = New-AzureADApplication @appCreationParameters
-            $startDate = Get-Date
-            $endDate = $startDate.AddYears(3)
-            $appSecret = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
-
-            $appSecret.value | Set-Content .\io.io
-
-            Write-Host "Application $appName created successfully in $targetTenantDomain tenant with following permissions. $permissions" -Foreground Green
-            Write-Host "Admin consent URI for $targetTenantDomain tenant admin is -" -Foreground Yellow
-            Write-Host ("https://login.microsoftonline.com/$($TenantId)/adminconsent?client_id=$($ClientId)&redirect_uri={2}" -f $targetTenantDomain, $appCreated.AppId, $appCreated.ReplyUrls[0])
-
-            return $appOwnerTenantId, $appCreated
-
+        foreach($permission in $permissions){
+            $appPermissions = new-object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $permission.Id,"Role"
+            $msGraphResourceAccess.ResourceAccess += $appPermissions
         }
-    }
 
+        #### Create the app with all the permissions ####
+        $appName = "Teams Usage Collector"
+        $appCreationParameters = @{
+            "DisplayName" = $appName;
+            "RequiredResourceAccess" = @($msGraphResourceAccess)
+            "ReplyUrls" = $replyUrls
+        }
 
+        $appCreated = New-AzureADApplication @appCreationParameters
+        $startDate = Get-Date
+        $endDate = $startDate.AddYears(3)
+        $appReg = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
+
+        $objAppReg = [PSCustomObject]@{
+            ObjectId = $appCreated.ObjectId
+            AppId = $appCreated.AppId
+            TenantId = (Get-AzureADTenantDetail).ObjectId
+            ClientSecret = $appReg.Value
+        }
+
+        #$objAppReg| Export-Csv .\AppRegInfo -NoTypeInformation
+
+        Write-Host "Application $appName created successfully in your tenant. Take not of the following information. If you lost one of them, ask you tenant admin to get it for you in Azure AD:
+            AppId: $($objAppReg.AppId)
+            TenantId: $($objAppReg.TenantId)
+            ClientSecret: $($objAppReg.ClientSecret)
+        
+        " -Foreground Green
+        Write-Host "Azure Admin shold consent using the following link:" -Foreground Yellow
+        Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
-
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
@@ -149,7 +143,6 @@ Function Send-GraphRequest{
         Write-Warning -Message $_.Exception.Message
     }
 }
-
 Function Get-LicenseSkuReport {
 
     Param(
@@ -177,25 +170,27 @@ Function Get-LicenseSkuReport {
         return $licenseReport|Format-Table
     }
 }
-
-
 Function Get-TeamsUsageReport{
 
     Param(
-        [Parameter(Mandatory=$true)]$ClientID,
+        [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         [Parameter(Mandatory=$true)]$ReportMode
     )
 
     #Following 3 lines are for test only and should be removed on final version
-    $clientId = "36533c7a-40cd-4f71-8362-c121dbc19b8a"
+    <#
+    $AppId = "36533c7a-40cd-4f71-8362-c121dbc19b8a"
     $clientSecret = (ConvertTo-SecureString "T__.n-jXkom_SM3uP2t2enBB~~dkBVFRd5" -AsPlainText -Force)
     $tenantId = "cdcae3ff-a663-4732-9cf5-1e33db81acf1"
+    #>
+
     
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
-    $users = Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $ClientID -ClientSecret $ClientSecret -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
+    
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force)-TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $users = Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
 
@@ -297,3 +292,4 @@ Function Get-TeamsUsageReport{
 
 Export-ModuleMember -Function Get-LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
+Export-ModuleMember -Function Create-TeamsUsageApplication
