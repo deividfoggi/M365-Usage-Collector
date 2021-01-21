@@ -134,10 +134,14 @@ Function Send-GraphRequest{
 Function Get-LicenseSkuReport {
 
     Param(
-        [Parameter(Mandatory=$true)]$Export
+        [Parameter(Mandatory=$false)]$Export
     )
 
-    if(!(Get-AzureADTenantDetail)){
+    try{
+        Get-AzureADTenantDetail -ErrorAction Stop | Out-Null
+    }
+    catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
+    {
         Connect-AzureAD
     }
 
@@ -148,16 +152,16 @@ Function Get-LicenseSkuReport {
     foreach($sku in $licensesRequest){
 
         $objLicense = [PSCustomObject] @{
-            "ConsumedUnits" = $sku.ConsumedUnits
-            "EnabledUnits" = $sku.PrepaidUnits.Enabled
             "Sku" = $sku.SkuPartNumber
+            "EnabledUnits" = $sku.PrepaidUnits.Enabled
+            "ConsumedUnits" = $sku.ConsumedUnits            
         }
         $licenseReport += $objLicense
     }
     if($Export -eq $true){
         $licenseReport | Export-Csv .\LicenseReport.csv -NoTypeInformation
     }else{
-        return $licenseReport
+        return $licenseReport|Format-Table
     }
 }
 
@@ -169,7 +173,6 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         [Parameter(Mandatory=$true)]$ReportMode,
-        [Parameter(Mandatory=$false)]$Export
     )
 
     #Following 3 lines are for test only and should be removed on final version
@@ -252,14 +255,7 @@ Function Get-TeamsUsageReport{
     }
 
     if($Export -eq $true){
-        switch($ReportMode){
-            "SummaryOnly" {
-                $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
-            }
-            "PerUser" {
-                $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
-            }
-        }
+
     }
     else{
         switch($ReportMode){
@@ -270,6 +266,15 @@ Function Get-TeamsUsageReport{
             "PerUser" {
                 $TeamsUsagePerUser = $joinedObjects
                 return $TeamsUsagePerUser
+            }
+            "Export"{
+                $summaryReportName = "TeamsUsageData_Summary.csv"
+                $perUserReportName = "TeamsUsageData_PerUser.csv"
+                $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
+                $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
+                Write-Host "Report saved in the following files:
+                    Summarized report - $((Get-Item $summaryReportName).FullName)
+                    Per user report - $((Get-Item $perUserReportName).FullName)."
             }
         }
     }
