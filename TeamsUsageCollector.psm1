@@ -49,6 +49,53 @@ If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
     Import-Module AzureAD
 }
 
+function Create-Application([string]$resourceTenantDomain, $certificate, $spns, $azAppPermissions, [guid]$ExistingApplicationId) {
+    if ([guid]::Empty -ne $ExistingApplicationId) {
+        $existingApp = Get-AzureADApplication -Filter "AppId eq '$ExistingApplicationId'"
+        if ($Null -ne $existingApp) {
+            Write-Warning "Existing application '$ExistingApplicationId' found. Skipping new application creation."
+            return (Get-AzureADTenantDetail).ObjectId, $existingApp
+        }
+    }
+
+    #### Collect all the permissions first ####
+    $appPerms = 'Reports.Read.All','User.Read.All'
+    Get-AzureADServicePrincipal -Filter "DisplayName eq 'MicrosoftGraph'"
+    Get-AzureADServicePrincipal -Filter "DisplayName eq 'Microsoft Graph'"
+
+    $msGraphService = Get-AzureADServicePrincipal -Filter "DisplayName eq 'Microsoft Graph'"
+    $permissions = $msGraphService.AppRoles.Where({$_.Value -in $appPerms})
+    
+    $msGraphResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAd.Model.RequiredResourceAccess"
+    $msGraphResourceAccess.ResourceAppId = $msGraphService.AppId
+
+    foreach($permission in $permissions){
+        $appPermissions = new-object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $p.Id,"Role"
+        $msGraphResourceAccess.ResourceAccess += $appPermissions
+    }
+
+    #### Create the app with all the permissions ####
+    $appName = "Teams Usage Collector"
+    $appCreationParameters = @{
+        "AvailableToOtherTenants" = $false;
+        "DisplayName" = $appName;
+        "RequiredResourceAccess" = $msGraphResourceAccess.ResourceAccess
+    }
+
+    $appCreated = New-AzureADApplication @appCreationParameters
+    $startDate = Get-Date
+    $endDate = $startDate.AddYears(3)
+    $appSecret = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
+
+    $appSecret.value | Set-Content .\io.io
+
+    Write-Host "Application $appName created successfully in $targetTenantDomain tenant with following permissions. $permissions" -Foreground Green
+    Write-Host "Admin consent URI for $targetTenantDomain tenant admin is -" -Foreground Yellow
+    Write-Host ("https://login.microsoftonline.com/$($TenantId)/adminconsent?client_id=$($ClientId)&redirect_uri={2}" -f $targetTenantDomain, $appCreated.AppId, $appCreated.ReplyUrls[0])
+
+    return $appOwnerTenantId, $appCreated
+}
+
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
