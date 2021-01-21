@@ -172,7 +172,7 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$true)]$ClientID,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
-        [Parameter(Mandatory=$true)]$ReportMode,
+        [Parameter(Mandatory=$true)]$ReportMode
     )
 
     #Following 3 lines are for test only and should be removed on final version
@@ -192,9 +192,11 @@ Function Get-TeamsUsageReport{
         $office365ActiveUserDetailUser = $office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
 
         $userObj = [PSCustomObject] @{
-            UserPrincipalName = $user.UserPrincipalName
+            <#Sanitized attributes#>
+            UserPrincipalName = "Sanitized" # $user.UserPrincipalName
+            DisplayName = "Sanitized" # $office365ActiveUserDetailUser.'Display Name'
+            <#End of Sanitized attributes#>
             Department = $user.Department
-            DisplayName = $office365ActiveUserDetailUser.'Display Name'
             IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
             DeletedDate = $office365ActiveUserDetailUser.'Deleted Date'
             HasExchangeLicense = $office365ActiveUserDetailUser.'Has Exchange License'
