@@ -18,7 +18,7 @@
   Collects information related to Teams usage from a M365 tenant.
 
  .Description
-  Export to .csv files information related to Teams usage in the contexts of user activity, user activation and licensing.
+  Display or export to .csv files information related to Teams usage in the contexts of user activity, user activation and licensing.
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 
  .Example
@@ -33,8 +33,9 @@
 
    # Get Teams usage per user
    Get-TeamsUsageReport -ReportMode "PerUser" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
-
-   # To export data to .csv, use the parameter -Export $true in any of the above options
+   
+   # Export summary and per user reports to csv files
+   Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
 #Requisites check
@@ -106,9 +107,10 @@ Function Create-TeamsUsageApplication {
             ClientSecret: $($objAppReg.ClientSecret)
         
         " -Foreground Green
-        Write-Host "Azure Admin shold consent using the following link:" -Foreground Yellow
+        Write-Host "Azure Admin should consent using the following link:" -Foreground Yellow
         Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
+
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
