@@ -39,11 +39,6 @@
 #>
 
 #Requisites check
-If(!(Get-InstalledModule -Name MSAL.PS -ErrorAction SilentlyContinue)){
-    Install-Module MSAL.PS
-}else{
-    Import-Module MSAL.PS
-}
 If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
     Install-Module AzureAD
 }else{
@@ -114,8 +109,8 @@ Function Create-M365UsageCollectorAppRegistration {
 Get-AzureADToken{
     Param(
         [Parameter(Mandatory=$true)]$clientID,
-        [Parameter(Mandatory=$true)]$tenantID,
-        [Parameter(Mandatory=$false)]$clientSecret
+        [Parameter(Mandatory=$false)]$clientSecret,
+        [Parameter(Mandatory=$true)]$tenantID
     )
 
     $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
@@ -207,9 +202,9 @@ Function Get-TeamsUsageReport{
 
     
     
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force)-TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
-    $users = Send-GraphRequest -Method Get -BearerToken (Get-MsalToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force)-TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $users = Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
 
