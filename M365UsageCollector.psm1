@@ -57,7 +57,7 @@ Function ConnectAzureAD{
     }
 }
 
-Function Create-M365UsageCollectorAppRegistration {
+Function New-M365UsageCollectorAppRegistration {
 
         ConnectAzureAD
 
