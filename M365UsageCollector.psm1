@@ -204,17 +204,10 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$true)]$ReportMode
     )
 
-    #Following 3 lines are for test only and should be removed on final version
-    <#
-    $AppId = "36533c7a-40cd-4f71-8362-c121dbc19b8a"
-    $clientSecret = (ConvertTo-SecureString "T__.n-jXkom_SM3uP2t2enBB~~dkBVFRd5" -AsPlainText -Force)
-    $tenantId = "cdcae3ff-a663-4732-9cf5-1e33db81acf1"
-    #>
-
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D30')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D30')")|ConvertFrom-Csv
     $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
