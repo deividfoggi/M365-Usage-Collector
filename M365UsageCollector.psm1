@@ -62,7 +62,7 @@ Function ConnectAzureAD{
     }
 }
 
-Function Create-TeamsUsageApplication {
+Function Create-M365UsageCollectorAppRegistration {
 
         #### Collect all the permissions first ####
         $appPerms = 'Reports.Read.All','User.Read.All'
