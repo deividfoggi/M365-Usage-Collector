@@ -122,7 +122,7 @@ Function Get-AzureADToken{
         $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
         $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
         try{
-            $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData -ErrorAction Stop
+            $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData  -ErrorAction Stop
             return $accessToken
         }
         catch{
@@ -203,7 +203,8 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$true)]$ClientSecret,
         [Parameter(Mandatory=$true)]$ReportMode
     )
-
+    
+    $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
     $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D30')")|ConvertFrom-Csv
@@ -211,8 +212,10 @@ Function Get-TeamsUsageReport{
     $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
-
+    $i = 1
     foreach($user in $users){
+
+        Write-Progress -Activity "Parsing users in report" -Status "Parsing user $i of $($users.length)" -Id 1 -PercentComplete (($i / $users.length)*100)
 
         $userteamsUserActivityUserDetail = $teamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
         $office365ActiveUserDetailUser = $office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
@@ -253,6 +256,7 @@ Function Get-TeamsUsageReport{
             ReportPeriod = $userteamsUserActivityUserDetail.'Report Period'
         }
         $joinedObjects += $userObj
+        $i++
     }
 
     $departments = ($users | Select-Object Department -Unique).department
