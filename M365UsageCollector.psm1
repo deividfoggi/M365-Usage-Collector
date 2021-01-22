@@ -111,6 +111,23 @@ Function Create-M365UsageCollectorAppRegistration {
         Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
 
+Get-AzureADToken{
+    Param(
+        [Parameter(Mandatory=$true)]$clientID,
+        [Parameter(Mandatory=$true)]$tenantID,
+        [Parameter(Mandatory=$false)]$clientSecret
+    )
+
+    $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
+    $postData = "client_id=" + $clientId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $clientSecret + "&grant_type=client_credentials"
+    try{
+        $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData -ErrorAction Stop
+        return $accessToken
+    }
+    catch{
+        Write-Warning -Message $_.Exception.Message
+    }
+}
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
