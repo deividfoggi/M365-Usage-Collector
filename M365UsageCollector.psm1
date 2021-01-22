@@ -106,29 +106,36 @@ Function Create-M365UsageCollectorAppRegistration {
         Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
 
-Get-AzureADToken{
+Function Get-AzureADToken{
     Param(
-        [Parameter(Mandatory=$true)]$clientID,
-        [Parameter(Mandatory=$false)]$clientSecret,
-        [Parameter(Mandatory=$true)]$tenantID
+        [Parameter(Mandatory=$true)]$AppId,
+        [Parameter(Mandatory=$true)]$TenantID,
+        [Parameter(Mandatory=$true)]$ClientSecret
     )
 
-    $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
-    $postData = "client_id=" + $clientId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $clientSecret + "&grant_type=client_credentials"
-    try{
-        $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData -ErrorAction Stop
-        return $accessToken
-    }
-    catch{
-        Write-Warning -Message $_.Exception.Message
+    if(!$global:accessToken){
+
+        Write-Warning "No token in cache"
+
+        $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
+        $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
+        try{
+            $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData -ErrorAction Stop
+            return $accessToken
+        }
+        catch{
+            $errorDescription = $_ | ConvertFrom-Json
+            Write-Warning $errorDescription.error
+            Write-Host $errorDescription.error_description -ForegroundColor Yellow
+        }
     }
 }
+
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
     [Parameter(Mandatory=$false)]$BearerToken,
     [Parameter(Mandatory=$false)]$Path,
-    [Parameter(Mandatory=$false)]$Json,
     [Parameter(Mandatory=$false)]$Beta
     )
 
@@ -142,7 +149,7 @@ Function Send-GraphRequest{
     try{
         $queryResults = @()
         do{
-            $request = Invoke-RestMethod -Method $Method -Headers @{Authorization = "Bearer $($bearerToken)"} -Uri $Uri -ContentType 'application/json' -Body $json -ErrorAction Stop
+            $request = Invoke-RestMethod -Method $Method -Headers @{Authorization = "Bearer $($bearerToken)"} -Uri $Uri -ContentType 'application/json' -ErrorAction Stop
             if($request.value){
                 $queryResults += $request.value
             }
@@ -154,7 +161,9 @@ Function Send-GraphRequest{
         return $queryResults
     }
     catch{
-        Write-Warning -Message $_.Exception.Message
+        $errorDescription = $_ | ConvertFrom-Json
+        Write-Warning $errorDescription.error
+        Write-Host $errorDescription.error_description -ForegroundColor Yellow
     }
 }
 Function Get-LicenseSkuReport {
@@ -200,11 +209,11 @@ Function Get-TeamsUsageReport{
     $tenantId = "cdcae3ff-a663-4732-9cf5-1e33db81acf1"
     #>
 
+    $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
-    
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force)-TenantId $TenantId).AccessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
-    $users = Send-GraphRequest -Method Get -BearerToken (Get-AzureADToken -ClientId $AppId -ClientSecret (ConvertTo-SecureString $ClientSecret -AsPlainText -Force) -TenantId $TenantId).AccessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
     $joinedObjects = @()
 
@@ -307,3 +316,4 @@ Function Get-TeamsUsageReport{
 Export-ModuleMember -Function Get-LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
 Export-ModuleMember -Function Create-TeamsUsageApplication
+#Export-ModuleMember -Function Get-AzureADToken
