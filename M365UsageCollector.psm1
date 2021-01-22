@@ -48,7 +48,7 @@ If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
 Function ConnectAzureAD{
     try{
         Get-AzureADTenantDetail -ErrorAction Stop | Out-Null
-        Write-Host "Azure AD already connected"
+        Write-Host "Azure AD already connected" -ForegroundColor Yellow
     }
     catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
     {
@@ -58,6 +58,8 @@ Function ConnectAzureAD{
 }
 
 Function Create-M365UsageCollectorAppRegistration {
+
+        ConnectAzureAD
 
         #### Collect all the permissions first ####
         $appPerms = 'Reports.Read.All','User.Read.All'
@@ -115,7 +117,7 @@ Function Get-AzureADToken{
 
     if(!$global:accessToken){
 
-        Write-Warning "No token in cache"
+        Write-Warning "No token in cache. Acquiring access token from Azure AD."
 
         $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
         $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
@@ -311,9 +313,9 @@ Function Get-TeamsUsageReport{
             }
         }
     }
+    Get-LicenseSkuReport -Export $true
 }
 
 Export-ModuleMember -Function Get-LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
-Export-ModuleMember -Function Create-TeamsUsageApplication
-#Export-ModuleMember -Function Get-AzureADToken
+Export-ModuleMember -Function Create-M365UsageCollectorAppRegistration
