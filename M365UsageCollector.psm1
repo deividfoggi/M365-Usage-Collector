@@ -262,8 +262,8 @@ Function Get-TeamsUsageReport{
     $departments = ($users | Select-Object Department -Unique).department
     $usersPerDepartmentWithTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
     $usersPerDepartmentWithoutTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object Department
-    $usersPerDepartmentWithActivity = $joinedObjects | Where-Object{$_.TeamsLastActivityDate -ne $null -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
-    $usersPerDepartmentWithoutActivity = $joinedObjects | Where-Object{$_.TeamsLastActivityDate -eq $null -or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
+    $usersPerDepartmentWithActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
+    $usersPerDepartmentWithoutActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
     $usersPerDepartmentWithMeeting = $joinedObjects | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
 
     $screenReport = @()
