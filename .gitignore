@@ -1,4 +1,3 @@
 debug.ps1
-launch.json
 *.csv
-*.vscode
+/.vscode/*
