@@ -148,24 +148,17 @@ Function Get-AzureADToken{
         [Parameter(Mandatory=$true)]$ClientSecret
     )
 
-    #If there is no token in current session
-    If(!$global:accessToken){
-
-        #Warns user that a new access token will be requested
-        Write-Warning "No token in cache. Acquiring access token from Azure AD."
-
-        $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
-        $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
-        try{
-            $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData  -ErrorAction Stop
-            Write-Warning "Access token acquired."
-            return $accessToken
-        }
-        catch{
-            $errorDescription = $_ | ConvertFrom-Json
-            Write-Warning $errorDescription.error
-            Write-Host $errorDescription.error_description -ForegroundColor Yellow
-        }
+    $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
+    $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
+    try{
+        $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData  -ErrorAction Stop
+        Write-Warning "Access token acquired."
+        return $accessToken
+    }
+    catch{
+        $errorDescription = $_ | ConvertFrom-Json
+        Write-Warning $errorDescription.error
+        Write-Host $errorDescription.error_description -ForegroundColor Yellow
     }
 }
 
