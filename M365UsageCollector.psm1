@@ -38,57 +38,90 @@
    Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
-#Requisites check
+#Check if AzureAD or AzureADPreview is installed
 If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
-    Install-Module AzureAD
-}else{
-    Import-Module AzureAD
+    #Installs default version of AzureAD
+    try{
+        Install-Module AzureAD -ErrorAction SilentlyContinue
+    }
+    catch{
+        Write-Warning $_.Exception
+    }
+}
+else{
+    #If already installed try to import the module
+    try{
+        Import-Module AzureAD -ErrorAction Stop
+    }
+    catch{
+        Write-Warning $_.Exception
+    }
 }
 
+#Function to connect to Azure AD
 Function ConnectAzureAD{
+    #Try to get tenant details as a way to check if AzureAD module is already connected. If not connect throws an exception to be catched and connect to Azure AD
     try{
         Get-AzureADTenantDetail -ErrorAction Stop | Out-Null
         Write-Host "Azure AD already connected" -ForegroundColor Yellow
     }
     catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
     {
+        #If a 'need auth' exception then connect to Azure AD asking for credentials
         Write-Warning "Connecting to Azure AD"
         Connect-AzureAD
     }
 }
 
+#Function to create an application registration in Azure AD to be used to connect to Graph API
 Function New-M365UsageCollectorAppRegistration {
-
+        #Connects to Azure AD
         ConnectAzureAD
 
-        #### Collect all the permissions first ####
+        #Define permissions needed
         $appPerms = 'Reports.Read.All','User.Read.All'
+        #Define a 'blank' consent reply URL
         $replyUrls = "https://login.microsoftonline.com/common/oauth2/nativeclient"
 
+        #Uses Azure AD module to get Azure AD service Principals related to Microsoft Graph
         $msGraphService = Get-AzureADServicePrincipal -All $true -Filter "DisplayName eq 'Microsoft Graph'"
+        
+        #Filters only those permissions in appPerms array
         $permissions = $msGraphService.AppRoles.Where({$_.Value -in $appPerms})
-            
+        
+        #Crates a new app permission object RequiredSourceAccess
         $msGraphResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAd.Model.RequiredResourceAccess"
+
+        #Fine app permission object ResourceAppId based on MS Graph service principal app id
         $msGraphResourceAccess.ResourceAppId = $msGraphService.AppId
 
+        #for each service principal permission related to microsoft graph in array appPerms, creates a new object ResourceAccess and adds to an array
         foreach($permission in $permissions){
             $appPermissions = new-object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $permission.Id,"Role"
             $msGraphResourceAccess.ResourceAccess += $appPermissions
         }
 
-        #### Create the app with all the permissions ####
+        # Define the name of the application registration
         $appName = "Teams Usage Collector"
+
+        #Define the parameters to be used in cmdlet to created the app reg, adding display name, permissions in object RequeredRsourceAccess and blank consent reply URL
         $appCreationParameters = @{
             "DisplayName" = $appName;
             "RequiredResourceAccess" = @($msGraphResourceAccess)
             "ReplyUrls" = $replyUrls
         }
 
+        #Creates the new app registration in Azure AD
         $appCreated = New-AzureADApplication @appCreationParameters
+
+        #Define start and end date for client secret duration
         $startDate = Get-Date
         $endDate = $startDate.AddYears(3)
+
+        #Creates a new client secret
         $appReg = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
 
+        #Creates a custom ps object to store information related to application registration that will be printed out in the screen
         $objAppReg = [PSCustomObject]@{
             ObjectId = $appCreated.ObjectId
             AppId = $appCreated.AppId
@@ -96,8 +129,7 @@ Function New-M365UsageCollectorAppRegistration {
             ClientSecret = $appReg.Value
         }
 
-        #$objAppReg| Export-Csv .\AppRegInfo -NoTypeInformation
-
+        #Write in the screen the details of the application registration including AppId, TenantId and Client Secret. Also prints out the URL to be used for the Azure Global Admin to consent the permissions
         Write-Host "Application $appName created successfully in your tenant. Take not of the following information. If you lost one of them, ask you tenant admin to get it for you in Azure AD:
             AppId: $($objAppReg.AppId)
             TenantId: $($objAppReg.TenantId)
@@ -108,6 +140,7 @@ Function New-M365UsageCollectorAppRegistration {
         Write-Host ("https://login.microsoftonline.com/$($objAppReg.TenantId)/adminconsent?client_id=$($objAppReg.AppId)&redirect_uri=$($replyUrls)") -Foreground Yellow
 }
 
+#Function to get Azure AD token
 Function Get-AzureADToken{
     Param(
         [Parameter(Mandatory=$true)]$AppId,
@@ -115,14 +148,17 @@ Function Get-AzureADToken{
         [Parameter(Mandatory=$true)]$ClientSecret
     )
 
-    if(!$global:accessToken){
+    #If there is no token in current session
+    If(!$global:accessToken){
 
+        #Warns user that a new access token will be requested
         Write-Warning "No token in cache. Acquiring access token from Azure AD."
 
         $stringUrl = "https://login.microsoftonline.com/" + $tenantId + "/oauth2/v2.0/token"
         $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
         try{
             $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData  -ErrorAction Stop
+            Write-Warning "Access token acquired."
             return $accessToken
         }
         catch{
@@ -133,6 +169,7 @@ Function Get-AzureADToken{
     }
 }
 
+#Function to submit HTTP requests to Graph API using protocol
 Function Send-GraphRequest{
     Param(
     [Parameter(Mandatory=$true)]$Method,
@@ -141,25 +178,38 @@ Function Send-GraphRequest{
     [Parameter(Mandatory=$false)]$Beta
     )
 
+    #Check if beta parameter is true to use beta endpoint
     If($Beta -eq $true){
         $Uri = "https://graph.microsoft.com/Beta" + $Path
     }
+    #if not beta, then use prod endpoint
     else{
         $Uri = "https://graph.microsoft.com/v1.0" + $Path
     }
 
+    #Try to send a request to Graph API endpoint using protocol
     try{
+        #Creates an empty array to store the appended results in case of paging
         $queryResults = @()
+
+        #Do the HTTP request against the API endpoint until there is no @odata.nextLink in the response meaning no further pages
         do{
-            $request = Invoke-RestMethod -Method $Method -Headers @{Authorization = "Bearer $($bearerToken)"} -Uri $Uri -ContentType 'application/json' -ErrorAction Stop
+            #Stores the rest method request agains API in a variable
+            $request = Invoke-RestMethod -Method $Method -Headers @{Authorization = "Bearer $($BearerToken)"} -Uri $Uri -ContentType 'application/json' -ErrorAction Stop
+
+            #If varaible has a value property with content means there is results/payload
             if($request.value){
+                #Adds the result/payload objects in the array
                 $queryResults += $request.value
             }
             else{
+                #If not, adds the entire response in the array
                 $queryResults += $request
             }
+            #Stores the @odata.nextLink in the variable used to check if there is further pages
             $Uri = $request.'@odata.nextLink'
         } until (!($Uri))
+        #Returns the array containing all pages appended
         return $queryResults
     }
     catch{
@@ -168,63 +218,94 @@ Function Send-GraphRequest{
         Write-Host $errorDescription.error_description -ForegroundColor Yellow
     }
 }
-Function Get-LicenseSkuReport {
 
+#Function to get a license sku report using Azure AD module
+Function Get-LicenseSkuReport {
     Param(
         [Parameter(Mandatory=$false)]$Export
     )
 
+    #Connects to Azure AD
     ConnectAzureAD
 
+    #Store all subscribed SKUs in a variable
     $licensesRequest = Get-AzureADSubscribedSku | Select-Object SkuPartNumber,*Units
 
+    #Creates an empy array to build append custom ps objects
     $licenseReport = @()
 
+    #For each subscribed SKU found
     foreach($sku in $licensesRequest){
 
+        #Crates a new ps custom object to store 3 attributes as follows
         $objLicense = [PSCustomObject] @{
             "Sku" = $sku.SkuPartNumber
             "EnabledUnits" = $sku.PrepaidUnits.Enabled
             "ConsumedUnits" = $sku.ConsumedUnits            
         }
+        #Append current object in the array
         $licenseReport += $objLicense
     }
+    #If Export parameter selected by user then exports the array into a csv file
     if($Export -eq $true){
         $licenseReport | Export-Csv .\LicenseReport.csv -NoTypeInformation
-    }else{
+    }
+    #If no Export parameter then print out in the screen
+    else{
         return $licenseReport|Format-Table
     }
 }
-Function Get-TeamsUsageReport{
 
+#Function to get teams usage report from Graph Reports API
+Function Get-TeamsUsageReport{
     Param(
         [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         [Parameter(Mandatory=$true)]$ReportMode
     )
+
+    #Register in a variable the start datetime for statistics purposes
+    $stopWatchStart = Get-Date
     
+    #Uses EscapeDataString function to prevent an issue that replaces all + sign in the client secret string with a blank space
     $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
+
+    #Get an Azure AD token using app reg info
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
+    #Send graph api requests against reports API to get teams reports considering a 30 days time span
     $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D30')")|ConvertFrom-Csv
     $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D30')")|ConvertFrom-Csv
+
+    #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
     $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
 
+    #Create an empty array to append ps custom objects
     $joinedObjects = @()
+
+    #Incrementation control variable for progress bar
     $i = 1
+
+    #for each user found in graph api users endpoint
     foreach($user in $users){
 
+        #Write the progress bar
         Write-Progress -Activity "Parsing users in report" -Status "Parsing user $i of $($users.length)" -Id 1 -PercentComplete (($i / $users.length)*100)
 
+        #Extract from the teams activity user detail report the current user findings
         $userteamsUserActivityUserDetail = $teamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
+
+        #Extract from the teams active user detail report the current user findings
         $office365ActiveUserDetailUser = $office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
 
+        #Create a ps custom object to store current user findings
         $userObj = [PSCustomObject] @{
-            <#Sanitized attributes#>
-            UserPrincipalName = "Sanitized" # $user.UserPrincipalName
-            DisplayName = "Sanitized" # $office365ActiveUserDetailUser.'Display Name'
-            <#End of Sanitized attributes#>
+            #Sanitize UserPrincipalName and DisplayName to remove PII
+            UserPrincipalName = "Sanitized"
+            DisplayName = "Sanitized"
+
+            #Fill the following attributes accordingly
             Department = $user.Department
             IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
             DeletedDate = $office365ActiveUserDetailUser.'Deleted Date'
@@ -255,27 +336,41 @@ Function Get-TeamsUsageReport{
             HasOtherAction = $userteamsUserActivityUserDetail.'Has Other Action'
             ReportPeriod = $userteamsUserActivityUserDetail.'Report Period'
         }
+        #Append current object into the array
         $joinedObjects += $userObj
+
+        #Increment the progress bar control variable
         $i++
     }
 
+    #Extract unique department strings from users endpoint result
     $departments = ($users | Select-Object Department -Unique).department
+    #Group by department users who has teams license
     $usersPerDepartmentWithTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
+    #Group by department users who has no teams license
     $usersPerDepartmentWithoutTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object Department
+    #Group by department users who has activity last date
     $usersPerDepartmentWithActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
+    #Group by department users who has no activity last date
     $usersPerDepartmentWithoutActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
+    #Group by department users who has teams meeting count greater than 0
     $usersPerDepartmentWithMeeting = $joinedObjects | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
 
+    #Creates an array to append ps custom objects
     $screenReport = @()
 
+    #For each unique department found in users end point api, uses the grouped objects above to build up a teams usage score
     foreach($department in $departments){
+
+        #Due to comparisons need, if department is blank set it as $null
         if(!$department){
             $department = $null
         }
 
+        #Creates a ps custom object for the current department and count it down each scenario to build the department score
         $obj = [PSCustomObject]@{
             Department = $department
-            UserCount = ($users|Where-Object{$_.department -eq $department}|Measure-Object).Count #checar por que as contagens nesse loop estão incorretas
+            UserCount = ($users|Where-Object{$_.department -eq $department}|Measure-Object).Count
             HasTeamsLicense = ($usersPerDepartmentWithTeams.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
             HasNoTeamsLicense = ($usersPerDepartmentWithoutTeams.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
             HasTeamsActivity = ($usersPerDepartmentWithActivity.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
@@ -283,36 +378,43 @@ Function Get-TeamsUsageReport{
             HasMeeting = ($usersPerDepartmentWithMeeting.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
 
         }
+        #Append the current ps custom object into the array
         $screenReport += $obj
     }
 
-    if($Export -eq $true){
-
-    }
-    else{
-        switch($ReportMode){
-            "SummaryOnly" {
-                $TeamsUsageSummary = $screenReport
-                return $TeamsUsageSummary
-            }
-            "PerUser" {
-                $TeamsUsagePerUser = $joinedObjects
-                return $TeamsUsagePerUser
-            }
-            "Export"{
-                $summaryReportName = "TeamsUsageData_Summary.csv"
-                $perUserReportName = "TeamsUsageData_PerUser.csv"
-                $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
-                $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
-                Write-Host "Report saved in the following files:
-                    Summarized report - $((Get-Item $summaryReportName).FullName)
-                    Per user report - $((Get-Item $perUserReportName).FullName)."
-            }
+    #Uses the ReportMode parameter input to define the output action
+    switch($ReportMode){
+        #Prints out a scorecard summary
+        "SummaryOnly" {
+            $TeamsUsageSummary = $screenReport
+            return $TeamsUsageSummary
+        }
+        #Prints out utilization detail per user
+        "PerUser" {
+            $TeamsUsagePerUser = $joinedObjects
+            return $TeamsUsagePerUser
+        }
+        #Exports both summary and per user detail scorecard
+        "Export"{
+            $summaryReportName = "TeamsUsageData_Summary.csv"
+            $perUserReportName = "TeamsUsageData_PerUser.csv"
+            $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
+            $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
+            Write-Host "Report saved in the following files:
+                Summarized report - $((Get-Item $summaryReportName).FullName)
+                Per user report - $((Get-Item $perUserReportName).FullName)."
+                #Exports to a csv the subscribed license sku report
+            Get-LicenseSkuReport -Export $true
         }
     }
-    Get-LicenseSkuReport -Export $true
+
+    #Stop the watch and register the time spent to export teams usage report
+    $stopWatchStop = Get-Date
+    $stopWatchResult = New-TimeSpan -Start $stopWatchStart -End $stopWatchStop
+    Write-Warning "Execution time: $($stopWatchResult.ToString("dd\.hh\:mm\:ss"))"
 }
 
+#Exposes the following functions as module cmdlets
 Export-ModuleMember -Function Get-LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
-Export-ModuleMember -Function Create-M365UsageCollectorAppRegistration
+Export-ModuleMember -Function New-M365UsageCollectorAppRegistration
