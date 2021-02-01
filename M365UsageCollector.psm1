@@ -1,4 +1,4 @@
-<#################################################################################
+<#########################################################################################
 #
 # The sample scripts are not supported under any Microsoft standard support
 # program or service. The sample scripts are provided AS IS without warranty
@@ -12,7 +12,7 @@
 # arising out of the use of or inability to use the sample scripts or documentation,
 # even if Microsoft has been advised of the possibility of such damages.
 #
-#################################################################################
+#########################################################################################
 
  .Synopsis
   Collects information related to Teams usage from a M365 tenant.
@@ -38,23 +38,75 @@
    Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
+#Creates an installation directory
+$installDir = "C:\Program Files\M365-Usage-Collector"
+
+#Function to create a Write-Log file and register Write-Log entries
+Function Write-Log{
+    Param(
+        [Parameter(Mandatory=$true)][string]$Status,
+        [Parameter(Mandatory=$true)][string]$Message
+    )
+    
+    $logName = $installDir + "\$(Get-Date -Format 'dd-MM-yyyy').log"
+
+    $dayLogFile = Test-Path $logName
+    
+    $dateTime = Get-Date -Format dd/MM/yyyy-HH:mm:ss
+
+    If($dayLogFile -eq $true){
+
+        $logLine = $dateTime + "," + $Status + "," + $Message
+        $logLine | Out-File -FilePath $logName -Append
+    }
+    Else
+    {
+        $header = "Date,Status,Message"
+        $header | Out-File -FilePath $logName
+        $logLine = $dateTime + "," + $Status + "," + $Message
+        $logLine | Out-File -FilePath $logName -Append
+    }
+}
+
+Write-Warning "Checking if an installation directory is needed"
+if(!(Test-Path $installDir)){
+    Write-Warning "Creating the installation directory"
+    try{
+        New-Item -ItemType Directory -Path $installDir -ErrorAction Stop
+        Write-Warning "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
+        Write-Log -Status "Info" -Message "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
+    }
+    catch{
+        Write-Warning "Unable to create installation directory: $($_.Exception.Message)"
+        Remove-Module M365UsageCollector -Force
+        Exit
+    }
+}
+else{
+    Write-Warning "Installation directory already created"
+}
+
 #Check if AzureAD or AzureADPreview is installed
-If(!(Get-InstalledModule -Name AzureAD -ErrorAction SilentlyContinue)){
+If(!(Get-InstalledModule -Name AzureAD -ErrorAction Stop)){
     #Installs default version of AzureAD
     try{
-        Install-Module AzureAD -ErrorAction SilentlyContinue
+        Install-Module AzureAD -ErrorAction Stop
+        Write-Log -Status "Info" -Message "AzureAD module installed sucessfully"
     }
     catch{
         Write-Warning $_.Exception
+        Write-Log -Status "Error" -Message "Unable to install AzureAD module: $($_.Exception.Message)"
     }
 }
 else{
     #If already installed try to import the module
     try{
         Import-Module AzureAD -ErrorAction Stop
+        Write-Log -Status "Info" -Message "AzureAD module imported sucessfully"
     }
     catch{
         Write-Warning $_.Exception
+        Write-Log -Status "Error" -Message "Unable to import AzureAD module: $($_.Exception.Message)"
     }
 }
 
@@ -64,11 +116,13 @@ Function ConnectAzureAD{
     try{
         Get-AzureADTenantDetail -ErrorAction Stop | Out-Null
         Write-Host "Azure AD already connected" -ForegroundColor Yellow
+        Write-Log -Status "Info" -Message "Azure AD already connected"
     }
     catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
     {
         #If a 'need auth' exception then connect to Azure AD asking for credentials
         Write-Warning "Connecting to Azure AD"
+        Write-Log -Status "Info" -Message "Connecting to Azure AD"
         Connect-AzureAD
     }
 }
@@ -112,14 +166,29 @@ Function New-M365UsageCollectorAppRegistration {
         }
 
         #Creates the new app registration in Azure AD
-        $appCreated = New-AzureADApplication @appCreationParameters
-
+        try{
+            Write-Log -Status "Info" -Message "Trying to create Azure AD Application Registration"
+            $appCreated = New-AzureADApplication @appCreationParameters
+            Write-Log -Status "Info" -Message "Azure AD Application Registration successfully created"
+        }
+        catch{
+            Write-Log -Status "Error" -Message "Unable to create Azure AD Application Registration: $($_.Exception.Message)"
+        }
+        
         #Define start and end date for client secret duration
         $startDate = Get-Date
         $endDate = $startDate.AddYears(3)
 
         #Creates a new client secret
-        $appReg = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate
+        try{
+            Write-Log -Status "Info" -Message "Trying to create password secret"
+            $appReg = New-AzureADApplicationPasswordCredential -ObjectId $appCreated.ObjectId -CustomKeyIdentifier "clientSecret" -StartDate ([DateTime]::Now) -EndDate $endDate -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Password secret created successfully"
+        }
+        catch{
+            Write-Log -Status "Error" -Message "Unable to create password secret: $($_.Exception.Message)"
+        }
+        
 
         #Creates a custom ps object to store information related to application registration that will be printed out in the screen
         $objAppReg = [PSCustomObject]@{
@@ -260,6 +329,7 @@ Function Get-TeamsUsageReport{
 
     #Register in a variable the start datetime for statistics purposes
     $stopWatchStart = Get-Date
+    Write-Log -Status "Info" -Message "Teams Usage Report execution started at $($stopWatchStart)"
     
     #Uses EscapeDataString function to prevent an issue that replaces all + sign in the client secret string with a blank space
     $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
@@ -267,12 +337,20 @@ Function Get-TeamsUsageReport{
     #Get an Azure AD token using app reg info
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
+    Write-Log -Status "Info" -Message "Starting the request for reports: Teams User Activity Detail and Office 365 Active User Detail"
     #Send graph api requests against reports API to get teams reports considering a 30 days time span
     $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D30')")|ConvertFrom-Csv
+    Write-Log -Status "Info" -Message "Finished the collection of Teams User Activity Detail report"
     $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D30')")|ConvertFrom-Csv
+    Write-Log -Status "Info" -Message "Finished the collection of Office 365 Active User Detail report"
 
+    Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
     #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
     $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
+    Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
+
+    #Extract unique department strings from users endpoint result
+    $departments = ($users | Select-Object Department -Unique).department
 
     #Create an empty array to append ps custom objects
     $joinedObjects = @()
@@ -280,6 +358,7 @@ Function Get-TeamsUsageReport{
     #Incrementation control variable for progress bar
     $i = 1
 
+    Write-Log -Status "Info" -Message "Start to parse users in reports with their deparments: $($users.Length) users and $($departments.Length) departments"
     #for each user found in graph api users endpoint
     foreach($user in $users){
 
@@ -335,9 +414,9 @@ Function Get-TeamsUsageReport{
         #Increment the progress bar control variable
         $i++
     }
+    Write-Log -Status "Info" -Message "Finished the user and department parsing"
+    Write-Log -Status "Info" -Message "Start to group objects"
 
-    #Extract unique department strings from users endpoint result
-    $departments = ($users | Select-Object Department -Unique).department
     #Group by department users who has teams license
     $usersPerDepartmentWithTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
     #Group by department users who has no teams license
@@ -348,6 +427,9 @@ Function Get-TeamsUsageReport{
     $usersPerDepartmentWithoutActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
     #Group by department users who has teams meeting count greater than 0
     $usersPerDepartmentWithMeeting = $joinedObjects | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
+
+    Write-Log -Status "Info" -Message "Finished to group objects"
+    Write-Log -Status "Info" -Message "Start to build teams usage score"
 
     #Creates an array to append ps custom objects
     $screenReport = @()
@@ -375,6 +457,9 @@ Function Get-TeamsUsageReport{
         $screenReport += $obj
     }
 
+    Write-Log -Status "Info" -Message "Finished the build of teams usage score"
+    Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
+
     #Uses the ReportMode parameter input to define the output action
     switch($ReportMode){
         #Prints out a scorecard summary
@@ -389,22 +474,24 @@ Function Get-TeamsUsageReport{
         }
         #Exports both summary and per user detail scorecard
         "Export"{
-            $summaryReportName = "TeamsUsageData_Summary.csv"
-            $perUserReportName = "TeamsUsageData_PerUser.csv"
-            $screenReport | Export-Csv .\TeamsUsageData_Summary.csv -NoTypeInformation
-            $joinedObjects | Export-Csv .\TeamsUsageData_PerUser.csv -NoTypeInformation
+            $summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+            $perUserReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+            $screenReport | Export-Csv $summaryReportPath -NoTypeInformation
+            $joinedObjects | Export-Csv $perUserReportPath -NoTypeInformation
             Write-Host "Report saved in the following files:
-                Summarized report - $((Get-Item $summaryReportName).FullName)
-                Per user report - $((Get-Item $perUserReportName).FullName)."
-                #Exports to a csv the subscribed license sku report
+                Summarized report - $((Get-Item $summaryReportPath).FullName)
+                Per user report - $((Get-Item $perUserReportPath).FullName)."
+            #Exports to a csv the subscribed license sku report
+            Write-Log -Status "Info" -Message "Start to collect Licenses SKU report"
             Get-LicenseSkuReport -Export $true
+            Write-Log -Status "Info" -Message "Finished the collection of Licenses SKU report"
         }
     }
 
     #Stop the watch and register the time spent to export teams usage report
     $stopWatchStop = Get-Date
     $stopWatchResult = New-TimeSpan -Start $stopWatchStart -End $stopWatchStop
-    Write-Warning "Execution time: $($stopWatchResult.ToString("dd\.hh\:mm\:ss"))"
+    Write-Log -Status "Info" -Message "Teams Usage Report execution time: $($stopWatchResult.ToString("dd\.hh\:mm\:ss"))"
 }
 
 #Exposes the following functions as module cmdlets
