@@ -38,8 +38,10 @@
    Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
+$currentVersion = "0.0.5"
 #Creates an installation directory
-$installDir = "C:\Program Files\M365-Usage-Collector"
+$installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)"
+$modulePath = "$installDir\M365UsageCollector.psm1"
 
 #Function to create a Write-Log file and register Write-Log entries
 Function Write-Log{
@@ -69,16 +71,19 @@ Function Write-Log{
 }
 
 Write-Warning "Checking if an installation directory is needed"
-if(!(Test-Path $installDir)){
+if(!(Test-Path $modulePath)){
     Write-Warning "Creating the installation directory"
     try{
-        New-Item -ItemType Directory -Path $installDir -ErrorAction Stop
+        New-Item -ItemType Directory -Path $installDir -Force -ErrorAction Stop
         Write-Warning "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
         Write-Log -Status "Info" -Message "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
+        Write-Warning "Installing M365 Usage Collector Module"
+        Copy-Item -Path .\M365UsageCollector.psm1 -Destination $installDir -Force -ErrorAction Stop
+        Write-Log -Status "Info" -Message "Module successfully installed"
     }
     catch{
-        Write-Warning "Unable to create installation directory: $($_.Exception.Message)"
-        Remove-Module M365UsageCollector -Force
+        Write-Warning "Error: $($_.Exception.Message)"
+        Remove-Module M365UsageCollector -ErrorAction SilentlyContinue
         Exit
     }
 }
@@ -86,29 +91,40 @@ else{
     Write-Warning "Installation directory already created"
 }
 
-#Check if AzureAD or AzureADPreview is installed
-If(!(Get-InstalledModule -Name AzureAD -ErrorAction Stop)){
-    #Installs default version of AzureAD
+Set-PSRepository PSGallery -InstallationPolicy Trusted
+#try to import azuread module
+try{
+    Import-Module AzureAD -ErrorAction Stop
+    Write-Log -Status "Info" -Message "AzureAD module imported sucessfully"
+}
+catch{
+    Write-Warning $_.Exception.Message
     try{
-        Install-Module AzureAD -ErrorAction Stop
+        Install-Module AzureAD -Confirm:$false -ErrorAction Stop
         Write-Log -Status "Info" -Message "AzureAD module installed sucessfully"
     }
     catch{
-        Write-Warning $_.Exception
-        Write-Log -Status "Error" -Message "Unable to install AzureAD module: $($_.Exception.Message)"
+        Write-Warning $_.Exception.Message
+        Write-Log -Status "Error" -Message $_.Exception.Message
+        try{
+            Import-Module AzureADPreview -Confirm:$false -ErrorAction Stop
+            Write-Log -Status "Info" -Message "AzureADPreview module imported sucessfully"
+        }
+        catch{
+            Write-Warning $_.Exception.Message
+            try{
+                Install-Module AzureADPreview -Confirm:$false -ErrorAction Stop
+                Write-Log -Status "Info" -Message "AzureADPreview module installed sucessfully"
+            }
+            catch{
+                Write-Warning $_.Exception.Message
+                Write-Log -Status "Error" -Message $_.Exception.Message
+                Exit
+            }
+        }
     }
 }
-else{
-    #If already installed try to import the module
-    try{
-        Import-Module AzureAD -ErrorAction Stop
-        Write-Log -Status "Info" -Message "AzureAD module imported sucessfully"
-    }
-    catch{
-        Write-Warning $_.Exception
-        Write-Log -Status "Error" -Message "Unable to import AzureAD module: $($_.Exception.Message)"
-    }
-}
+Set-PSRepository PSGallery -InstallationPolicy Untrusted
 
 #Function to connect to Azure AD
 Function ConnectAzureAD{
@@ -124,6 +140,37 @@ Function ConnectAzureAD{
         Write-Warning "Connecting to Azure AD"
         Write-Log -Status "Info" -Message "Connecting to Azure AD"
         Connect-AzureAD
+    }
+}
+
+Function New-M365UsageCollectorJob{
+    param(
+        [Parameter(Mandatory=$true)]$AppId,
+        [Parameter(Mandatory=$true)]$TenantId,
+        [Parameter(Mandatory=$true)]$ClientSecret,
+        [Parameter(Mandatory=$true)]$ReportMode
+    )
+
+    $taskName = "M365UsageCollector"
+    $taskAction = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument '-File "C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\temp.ps1"'
+    $taskDescription = "Collect usage data from Microsoft 365 cloud"
+    $taskCredentials = Get-Credential -Message "Scheduled task credential to run once"
+    $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -RunLevel Highest
+    $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
+    $tempJob = "Import-Module '$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\M365UsageCollector.psm1';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item 'C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\temp.ps1' -Confirm:`$false"
+    $tempJob | Set-Content "C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\temp.ps1"
+
+    try{
+        #Start-Job -Name "TeamsUsageCollector-$(New-Guid)" -ScriptBlock {Import-Module "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\M365UsageCollector.psm1";Get-TeamsUsageReport -AppId $args[0] -TenantId $args[1] -ClientSecret $args[2] -ReportMode $args[3]} -ArgumentList $AppId,$TenantId,$ClientSecret,$ReportMode -ErrorAction $stopWatchStop
+        Register-ScheduledTask -TaskName $taskName -Action $taskAction -Description $taskDescription -ErrorAction Stop
+        Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+        Write-Log -Status "Info" -Message "Task $($taskName) created and configured to run with user $($taskCredentials.UserName) once"
+        Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        Write-Log -Status "Info" -Message "Task $($taskName) started successfully. For more details check on Windows Task Scheduler"
+    }
+    catch{
+        Write-Warning $_.Exception.Message
+        Write-Log -Status "Error" -Message $_.Exception.Message
     }
 }
 
@@ -282,10 +329,12 @@ Function Send-GraphRequest{
 }
 
 #Function to get a license sku report using Azure AD module
-Function Get-LicenseSkuReport {
+Function Get-M365LicenseSkuReport {
     Param(
         [Parameter(Mandatory=$false)]$Export
     )
+
+    $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)"
 
     #Connects to Azure AD
     ConnectAzureAD
@@ -310,11 +359,11 @@ Function Get-LicenseSkuReport {
     }
     #If Export parameter selected by user then exports the array into a csv file
     if($Export -eq $true){
-        $licenseReport | Export-Csv .\LicenseReport.csv -NoTypeInformation
+        $licenseReport | Export-Csv "$installDir\LicenseReport.csv" -NoTypeInformation
     }
     #If no Export parameter then print out in the screen
     else{
-        return $licenseReport|Format-Table
+        return $licenseReport | Format-Table
     }
 }
 
@@ -486,6 +535,16 @@ Function Get-TeamsUsageReport{
             Get-LicenseSkuReport -Export $true
             Write-Log -Status "Info" -Message "Finished the collection of Licenses SKU report"
         }
+        #Exports both summary and per user detail scorecard
+        "AsJob"{
+            $summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+            $perUserReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+            $screenReport | Export-Csv $summaryReportPath -NoTypeInformation
+            $joinedObjects | Export-Csv $perUserReportPath -NoTypeInformation
+            Write-Host "Report saved in the following files:
+                Summarized report - $((Get-Item $summaryReportPath).FullName)
+                Per user report - $((Get-Item $perUserReportPath).FullName)"
+        }
     }
 
     #Stop the watch and register the time spent to export teams usage report
@@ -495,6 +554,7 @@ Function Get-TeamsUsageReport{
 }
 
 #Exposes the following functions as module cmdlets
-Export-ModuleMember -Function Get-LicenseSkuReport
+Export-ModuleMember -Function Get-M365LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
 Export-ModuleMember -Function New-M365UsageCollectorAppRegistration
+Export-ModuleMember -Function New-M365UsageCollectorJob
