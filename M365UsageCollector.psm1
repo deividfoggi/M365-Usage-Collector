@@ -151,7 +151,7 @@ Function New-M365UsageCollectorJob{
 
     try{        
         if(!(Get-ScheduledTask m365usagecollector -ErrorAction Ignore)){
-            Register-ScheduledTask -TaskName $taskName -Action $taskAction -Description $taskDescription -ErrorAction Stop
+            Register-ScheduledTask -TaskName $taskName -Seetings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -Description $taskDescription -ErrorAction Stop
         }
         else{
             Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
