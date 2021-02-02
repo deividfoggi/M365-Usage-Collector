@@ -154,7 +154,7 @@ Function New-M365UsageCollectorJob{
             Register-ScheduledTask -TaskName $taskName -Seetings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -Description $taskDescription -ErrorAction Stop
         }
         else{
-            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -Description $taskDescription -ErrorAction Stop
+            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
         }
         Write-Log -Status "Info" -Message "Task $($taskName) created and configured to run with user $($taskCredentials.UserName) once"
         Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
