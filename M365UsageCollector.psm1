@@ -20,27 +20,11 @@
  .Description
   Display or export to .csv files information related to Teams usage in the contexts of user activity, user activation and licensing.
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
-
- .Example
-   # Get license usage report per sku
-   Get-LicenseSkuReport
-
-   # Get Teams usage report including summary and a full report per user
-   Get-TeamsUsageReport -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
-  
-   # Get Teams usage summary only
-   Get-TeamsUsageReport -ReportMode "SummaryOnly" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
-
-   # Get Teams usage per user
-   Get-TeamsUsageReport -ReportMode "PerUser" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
-   
-   # Export summary and per user reports to csv files
-   Get-TeamsUsageReport -ReportMode "Export" -ClientId 00000000-0000-0000-0000-000000000000 -TenantId 00000000-0000-0000-0000-000000000000 -ClientSecret 00000000-0000-0000-0000-000000000000
 #>
 
 $currentVersion = "0.0.5"
 #Creates an installation directory
-$installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)"
+$installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
 
 #Function to create a Write-Log file and register Write-Log entries
@@ -78,7 +62,8 @@ if(!(Test-Path $modulePath)){
         Write-Warning "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
         Write-Log -Status "Info" -Message "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
         Write-Warning "Installing M365 Usage Collector Module"
-        Copy-Item -Path .\M365UsageCollector.psm1 -Destination $installDir -Force -ErrorAction Stop
+        $moduleContent = Get-Content .\M365USageCollector.psm1 -ErrorAction Stop
+        $moduleContent | Set-Content -Path $modulePath -Force -ErrorAction Stop
         Write-Log -Status "Info" -Message "Module successfully installed"
     }
     catch{
@@ -91,7 +76,9 @@ else{
     Write-Warning "Installation directory already created"
 }
 
+#Temporary set PSGallery as a trusted source to prevent in-screen prompt due to untrusted ps repository which will freeze scheduled task execution
 Set-PSRepository PSGallery -InstallationPolicy Trusted
+
 #try to import azuread module
 try{
     Import-Module AzureAD -ErrorAction Stop
@@ -124,6 +111,8 @@ catch{
         }
     }
 }
+
+#Set PSGallery back to default config
 Set-PSRepository PSGallery -InstallationPolicy Untrusted
 
 #Function to connect to Azure AD
@@ -157,13 +146,16 @@ Function New-M365UsageCollectorJob{
     $taskCredentials = Get-Credential -Message "Scheduled task credential to run once"
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
-    $tempJob = "Import-Module '$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\M365UsageCollector.psm1';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item 'C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\temp.ps1' -Confirm:`$false"
-    $tempJob | Set-Content "C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\temp.ps1"
+    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
-    try{
-        #Start-Job -Name "TeamsUsageCollector-$(New-Guid)" -ScriptBlock {Import-Module "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5\M365UsageCollector.psm1";Get-TeamsUsageReport -AppId $args[0] -TenantId $args[1] -ClientSecret $args[2] -ReportMode $args[3]} -ArgumentList $AppId,$TenantId,$ClientSecret,$ReportMode -ErrorAction $stopWatchStop
-        Register-ScheduledTask -TaskName $taskName -Action $taskAction -Description $taskDescription -ErrorAction Stop
-        Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+    try{        
+        if(!(Get-ScheduledTask m365usagecollector -ErrorAction Ignore)){
+            Register-ScheduledTask -TaskName $taskName -Action $taskAction -Description $taskDescription -ErrorAction Stop
+        }
+        else{
+            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+        }
         Write-Log -Status "Info" -Message "Task $($taskName) created and configured to run with user $($taskCredentials.UserName) once"
         Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
         Write-Log -Status "Info" -Message "Task $($taskName) started successfully. For more details check on Windows Task Scheduler"
