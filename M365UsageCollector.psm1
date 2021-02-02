@@ -22,7 +22,7 @@
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 #>
 
-$currentVersion = "0.0.5"
+$currentVersion = "0.0.6"
 #Creates an installation directory
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
