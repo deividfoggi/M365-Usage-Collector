@@ -132,6 +132,11 @@ Function ConnectAzureAD{
     }
 }
 
+#Beta function to parse a batch of users in a report
+Function New-ParseJob{
+
+}
+
 Function New-M365UsageCollectorJob{
     param(
         [Parameter(Mandatory=$true)]$AppId,
