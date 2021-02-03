@@ -134,7 +134,63 @@ Function ConnectAzureAD{
 
 #Beta function to parse a batch of users in a report
 Function New-ParseJob{
+    Param(
+        [array]$UserList,
+        [array]$Report
+    )
 
+    #Creates a Runspace pool limited to 10 threads
+    $RunspacePool = [runspacefactory]::CreateRunspacePool(1,5)
+    $RunspacePool.Open()
+    $Jobs = @()
+
+    $usersChunks = Split-Array -Array $UserList -ObjectLimit 1000
+
+    $i = 1
+    foreach($users in $usersChunks){
+        $ParamList = @{
+            FileName = "$($i).csv"
+            Users = $users
+        }
+        $PowerShell = [powershell]::Create()
+        $PowerShell.RunspacePool = $RunspacePool
+        $PowerShell.AddScript({param ($FileName,$Users) $Users | Export-Csv "$($FileName).csv"})
+        $PowerShell.AddParameters($ParamList)
+        $jobs += $PowerShell.BeginInvoke()
+        $i++
+    }
+    While($Jobs.IsCompleted -contains $false){Write-Warning "Processing..."}
+}
+
+#Function to split an array of objects
+Function Split-Array{
+    Param(
+    $Array,
+    $ObjectLimit
+)
+
+    [int]$blockLimit = $ObjectLimit
+    $numberOfJobs = [math]::Floor($Array.length / $blockLimit)
+    $lastJobCount = $Array.Length % $blockLimit
+    $i = 1
+    $result = @()
+    Do{
+        if($i -eq ($numberOfJobs + 1)){
+            $varFirst = $lastJobCount
+            $varSkip = $numberOfObj * ($i - 1)
+        }else{
+            $numberOfObj = $blockLimit
+            $varFirstTmp = $numberOfObj * $i
+            $varSkip = $varFirstTmp - $numberOfObj
+            $varFirst = $numberOfObj
+        }
+
+        $result+=,@($Array | Select-Object -First $varFirst -Skip $varSkip)
+
+        $i++
+    }
+    Until($i -gt $numberOfJobs + 1)
+    return,$result
 }
 
 Function New-M365UsageCollectorJob{
@@ -395,14 +451,20 @@ Function Get-TeamsUsageReport{
     $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=UserPrincipalName,Department&`$top=999"
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
 
+    #Beta function - multi-thread
+    New-ParseJob -UserList $users -Report $office365ActiveUserDetail
+    
     #Extract unique department strings from users endpoint result
     $departments = ($users | Select-Object Department -Unique).department
 
     #Create an empty array to append ps custom objects
     $joinedObjects = @()
 
+        
+    <#
     #Incrementation control variable for progress bar
     $i = 1
+
 
     Write-Log -Status "Info" -Message "Start to parse users in reports with their deparments: $($users.Length) users and $($departments.Length) departments"
     #for each user found in graph api users endpoint
@@ -460,6 +522,7 @@ Function Get-TeamsUsageReport{
         #Increment the progress bar control variable
         $i++
     }
+    #>
     Write-Log -Status "Info" -Message "Finished the user and department parsing"
     Write-Log -Status "Info" -Message "Start to group objects"
 
