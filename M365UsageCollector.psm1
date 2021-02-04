@@ -266,6 +266,8 @@ Function Join-TemporaryFiles{
         #Append current file into the final report
         $currentFile | Export-Csv $reportFile -Append -NoTypeInformation
     }
+    #Remove temporary files
+    $files | Remove-Item -Force -Confirm:$false
 }
 
 Function New-M365UsageCollectorJob{
