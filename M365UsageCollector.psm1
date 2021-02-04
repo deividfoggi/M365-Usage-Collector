@@ -79,35 +79,45 @@ else{
 #Temporary set PSGallery as a trusted source to prevent in-screen prompt due to untrusted ps repository which will freeze scheduled task execution
 Set-PSRepository PSGallery -InstallationPolicy Trusted
 
-#try to import azuread module
-try{
-    Import-Module AzureAD -ErrorAction Stop
-    Write-Log -Status "Info" -Message "AzureAD module imported sucessfully"
-}
-catch{
-    Write-Warning $_.Exception.Message
+#Check if AzureADModule is already imported
+Write-Log -Status "Info" -Message "Checking if AzureAD or AzureADPreview module is already installed"
+if(!(Get-Command -Module AzureAD) -And !(Get-Command -Module AzureADPreview)){
+    Write-Log -Status "Info" -Message "Azure module not yet installed. Trying to install it"
+    #try to import azuread module
     try{
-        Install-Module AzureAD -Confirm:$false -ErrorAction Stop
+        Install-Module AzureAD -AllowClober -ErrorAction Stop
         Write-Log -Status "Info" -Message "AzureAD module installed sucessfully"
     }
     catch{
         Write-Warning $_.Exception.Message
-        Write-Log -Status "Error" -Message $_.Exception.Message
+        Write-Log -Status "Error" -Message "Error tyring to install AzureAD Module: $($_.Exception)"
         try{
-            Import-Module AzureADPreview -Confirm:$false -ErrorAction Stop
+            Install-Module AzureADPreview -ErrorAction Stop
+            Write-Log -Status "Info" -Message "AzureADPreview module installed sucessfully"
+        }
+        catch{
+            Write-Warning $_.Exception.Message
+            Write-Log -Status "Error" -Message "Error tyring to install AzureADPreview Module: $($_.Exception)"
+            Exit
+        }
+    }
+}else{
+    Write-Log -Status "Info" -Message "Azure module already installed. Trying to import it"
+    try{
+        Import-Module AzureAD -ErrorAction Stop
+        Write-Log -Status "Info" -Message "AzureAD module imported sucessfully"
+    }
+    catch{
+        Write-Warning $_.Exception.Message
+        Write-Log -Status "Error" -Message "Error tyring to import AzureAD Module: $($_.Exception)"
+        try{
+            Import-Module AzureADPreview -ErrorAction Stop
             Write-Log -Status "Info" -Message "AzureADPreview module imported sucessfully"
         }
         catch{
             Write-Warning $_.Exception.Message
-            try{
-                Install-Module AzureADPreview -Confirm:$false -ErrorAction Stop
-                Write-Log -Status "Info" -Message "AzureADPreview module installed sucessfully"
-            }
-            catch{
-                Write-Warning $_.Exception.Message
-                Write-Log -Status "Error" -Message $_.Exception.Message
-                Exit
-            }
+            Write-Log -Status "Error" -Message "Error tyring to import AzureADPreview Module: $($_.Exception)"
+            Exit
         }
     }
 }
