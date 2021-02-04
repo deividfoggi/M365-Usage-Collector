@@ -212,7 +212,7 @@ Function New-M365UsageParseJob{
             $joinedObjects | Export-Csv $FileName -NoTypeInformation
         })
         $PowerShell.AddParameters($ParamList)
-        $jobs += $PowerShell.BeginInvoke()
+        $jobs += $PowerShell.BeginInvoke() | Out-Null
         $i++
     }
     While($Jobs.IsCompleted -contains $false){}
