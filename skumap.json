@@ -1,0 +1,414 @@
+[
+    {
+        "ProductName":  "APP CONNECT IW",
+        "StringId":  "SPZA_IW"
+    },
+    {
+        "ProductName":  "Microsoft 365 Audio Conferencing",
+        "StringId":  "MCOMEETADV"
+    },
+    {
+        "ProductName":  "AZURE ACTIVE DIRECTORY BASIC",
+        "StringId":  "AAD_BASIC"
+    },
+    {
+        "ProductName":  "AZURE ACTIVE DIRECTORY PREMIUM P1",
+        "StringId":  "AAD_PREMIUM"
+    },
+    {
+        "ProductName":  "AZURE ACTIVE DIRECTORY PREMIUM P2",
+        "StringId":  "AAD_PREMIUM_P2"
+    },
+    {
+        "ProductName":  "AZURE INFORMATION PROTECTION PLAN 1",
+        "StringId":  "RIGHTSMANAGEMENT"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 CUSTOMER ENGAGEMENT PLAN ENTERPRISE EDITION",
+        "StringId":  "DYN365_ENTERPRISE_PLAN1"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 FOR CUSTOMER SERVICE ENTERPRISE EDITION",
+        "StringId":  "DYN365_ENTERPRISE_CUSTOMER_SERVICE"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 FOR FINANCIALS BUSINESS EDITION",
+        "StringId":  "DYN365_FINANCIALS_BUSINESS_SKU"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 FOR SALES AND CUSTOMER SERVICE ENTERPRISE EDITION",
+        "StringId":  "DYN365_ENTERPRISE_SALES_CUSTOMERSERVICE"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 FOR SALES ENTERPRISE EDITION",
+        "StringId":  "DYN365_ENTERPRISE_SALES"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 FOR TEAM MEMBERS ENTERPRISE EDITION",
+        "StringId":  "DYN365_ENTERPRISE_TEAM_MEMBERS"
+    },
+    {
+        "ProductName":  "DYNAMICS 365 UNF OPS PLAN ENT EDITION",
+        "StringId":  "Dynamics_365_for_Operations"
+    },
+    {
+        "ProductName":  "ENTERPRISE MOBILITY + SECURITY E3",
+        "StringId":  "EMS"
+    },
+    {
+        "ProductName":  "ENTERPRISE MOBILITY + SECURITY E5",
+        "StringId":  "EMSPREMIUM"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE (PLAN 1)",
+        "StringId":  "EXCHANGESTANDARD"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE (PLAN 2)",
+        "StringId":  "EXCHANGEENTERPRISE"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE ARCHIVING FOR EXCHANGE ONLINE",
+        "StringId":  "EXCHANGEARCHIVE_ADDON"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE ARCHIVING FOR EXCHANGE SERVER",
+        "StringId":  "EXCHANGEARCHIVE"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE ESSENTIALS",
+        "StringId":  "EXCHANGEESSENTIALS"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE ESSENTIALS",
+        "StringId":  "EXCHANGE_S_ESSENTIALS"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE KIOSK",
+        "StringId":  "EXCHANGEDESKLESS"
+    },
+    {
+        "ProductName":  "EXCHANGE ONLINE POP",
+        "StringId":  "EXCHANGETELCO"
+    },
+    {
+        "ProductName":  "INTUNE",
+        "StringId":  "INTUNE_A"
+    },
+    {
+        "ProductName":  "Microsoft 365 A1",
+        "StringId":  "M365EDU_A1"
+    },
+    {
+        "ProductName":  "Microsoft 365 A3 for faculty",
+        "StringId":  "M365EDU_A3_FACULTY"
+    },
+    {
+        "ProductName":  "Microsoft 365 A3 for students",
+        "StringId":  "M365EDU_A3_STUDENT"
+    },
+    {
+        "ProductName":  "Microsoft 365 A5 for faculty",
+        "StringId":  "M365EDU_A5_FACULTY"
+    },
+    {
+        "ProductName":  "Microsoft 365 A5 for students",
+        "StringId":  "M365EDU_A5_STUDENT"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 APPS FOR BUSINESS",
+        "StringId":  "O365_BUSINESS"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 APPS FOR BUSINESS",
+        "StringId":  "SMB_BUSINESS"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 APPS FOR ENTERPRISE",
+        "StringId":  "OFFICESUBSCRIPTION"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 BUSINESS BASIC",
+        "StringId":  "O365_BUSINESS_ESSENTIALS"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 BUSINESS BASIC",
+        "StringId":  "SMB_BUSINESS_ESSENTIALS"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 BUSINESS STANDARD",
+        "StringId":  "O365_BUSINESS_PREMIUM"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 BUSINESS PREMIUM",
+        "StringId":  "SPB"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 E3",
+        "StringId":  "SPE_E3"
+    },
+    {
+        "ProductName":  "Microsoft 365 E5",
+        "StringId":  "SPE_E5"
+    },
+    {
+        "ProductName":  "Microsoft 365 E3_USGOV_DOD",
+        "StringId":  "SPE_E3_USGOV_DOD"
+    },
+    {
+        "ProductName":  "Microsoft 365 E3_USGOV_GCCHIGH",
+        "StringId":  "SPE_E3_USGOV_GCCHIGH"
+    },
+    {
+        "ProductName":  "Microsoft 365 E5 Compliance",
+        "StringId":  "INFORMATION_PROTECTION_COMPLIANCE"
+    },
+    {
+        "ProductName":  "Microsoft 365 E5 Security",
+        "StringId":  "IDENTITY_THREAT_PROTECTION"
+    },
+    {
+        "ProductName":  "Microsoft 365 E5 Security for EMS E5",
+        "StringId":  "IDENTITY_THREAT_PROTECTION_FOR_EMS_E5"
+    },
+    {
+        "ProductName":  "Microsoft 365 F1",
+        "StringId":  "M365_F1"
+    },
+    {
+        "ProductName":  "Microsoft 365 F3",
+        "StringId":  "SPE_F1"
+    },
+    {
+        "ProductName":  "MICROSOFT FLOW FREE",
+        "StringId":  "FLOW_FREE"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM",
+        "StringId":  "MCOEV"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR DOD",
+        "StringId":  "MCOEV_DOD"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR FACULTY",
+        "StringId":  "MCOEV_FACULTY"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR GCC",
+        "StringId":  "MCOEV_GOV"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR GCCHIGH",
+        "StringId":  "MCOEV_GCCHIGH"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR SMALL AND MEDIUM BUSINESS",
+        "StringId":  "MCOEVSMB_1"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR STUDENTS",
+        "StringId":  "MCOEV_STUDENT"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM FOR TELSTRA",
+        "StringId":  "MCOEV_TELSTRA"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM_USGOV_DOD",
+        "StringId":  "MCOEV_USGOV_DOD"
+    },
+    {
+        "ProductName":  "MICROSOFT 365 PHONE SYSTEM_USGOV_GCCHIGH",
+        "StringId":  "MCOEV_USGOV_GCCHIGH"
+    },
+    {
+        "ProductName":  "Microsoft Defender Advanced Threat Protection",
+        "StringId":  "WIN_DEF_ATP"
+    },
+    {
+        "ProductName":  "MICROSOFT DYNAMICS CRM ONLINE BASIC",
+        "StringId":  "CRMPLAN2"
+    },
+    {
+        "ProductName":  "MICROSOFT DYNAMICS CRM ONLINE",
+        "StringId":  "CRMSTANDARD"
+    },
+    {
+        "ProductName":  "MS IMAGINE ACADEMY",
+        "StringId":  "IT_ACADEMY_AD"
+    },
+    {
+        "ProductName":  "MICROSOFT TEAM (FREE)",
+        "StringId":  "TEAMS_FREE"
+    },
+    {
+        "ProductName":  "Office 365 A5 for faculty",
+        "StringId":  "ENTERPRISEPREMIUM_FACULTY"
+    },
+    {
+        "ProductName":  "Office 365 A5 for students",
+        "StringId":  "ENTERPRISEPREMIUM_STUDENT"
+    },
+    {
+        "ProductName":  "Office 365 Advanced Compliance",
+        "StringId":  "EQUIVIO_ANALYTICS"
+    },
+    {
+        "ProductName":  "Office 365 Advanced Threat Protection (Plan 1)",
+        "StringId":  "ATP_ENTERPRISE"
+    },
+    {
+        "ProductName":  "OFFICE 365 E1",
+        "StringId":  "STANDARDPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 E2",
+        "StringId":  "STANDARDWOFFPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 E3",
+        "StringId":  "ENTERPRISEPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 E3 DEVELOPER",
+        "StringId":  "DEVELOPERPACK"
+    },
+    {
+        "ProductName":  "Office 365 E3_USGOV_DOD",
+        "StringId":  "ENTERPRISEPACK_USGOV_DOD"
+    },
+    {
+        "ProductName":  "Office 365 E3_USGOV_GCCHIGH",
+        "StringId":  "ENTERPRISEPACK_USGOV_GCCHIGH"
+    },
+    {
+        "ProductName":  "OFFICE 365 E4",
+        "StringId":  "ENTERPRISEWITHSCAL"
+    },
+    {
+        "ProductName":  "OFFICE 365 E5",
+        "StringId":  "ENTERPRISEPREMIUM"
+    },
+    {
+        "ProductName":  "OFFICE 365 E5 WITHOUT AUDIO CONFERENCING",
+        "StringId":  "ENTERPRISEPREMIUM_NOPSTNCONF"
+    },
+    {
+        "ProductName":  "OFFICE 365 F1",
+        "StringId":  "DESKLESSPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 F3",
+        "StringId":  "DESKLESSPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 MIDSIZE BUSINESS",
+        "StringId":  "MIDSIZEPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 SMALL BUSINESS",
+        "StringId":  "LITEPACK"
+    },
+    {
+        "ProductName":  "OFFICE 365 SMALL BUSINESS PREMIUM",
+        "StringId":  "LITEPACK_P2"
+    },
+    {
+        "ProductName":  "ONEDRIVE FOR BUSINESS (PLAN 1)",
+        "StringId":  "WACONEDRIVESTANDARD"
+    },
+    {
+        "ProductName":  "ONEDRIVE FOR BUSINESS (PLAN 2)",
+        "StringId":  "WACONEDRIVEENTERPRISE"
+    },
+    {
+        "ProductName":  "POWER APPS PER USER PLAN",
+        "StringId":  "POWERAPPS_PER_USER"
+    },
+    {
+        "ProductName":  "POWER BI (FREE)",
+        "StringId":  "POWER_BI_STANDARD"
+    },
+    {
+        "ProductName":  "POWER BI FOR OFFICE 365 ADD-ON",
+        "StringId":  "POWER_BI_ADDON"
+    },
+    {
+        "ProductName":  "POWER BI PRO",
+        "StringId":  "POWER_BI_PRO"
+    },
+    {
+        "ProductName":  "PROJECT FOR OFFICE 365",
+        "StringId":  "PROJECTCLIENT"
+    },
+    {
+        "ProductName":  "PROJECT ONLINE ESSENTIALS",
+        "StringId":  "PROJECTESSENTIALS"
+    },
+    {
+        "ProductName":  "PROJECT ONLINE PREMIUM",
+        "StringId":  "PROJECTPREMIUM"
+    },
+    {
+        "ProductName":  "PROJECT ONLINE PREMIUM WITHOUT PROJECT CLIENT",
+        "StringId":  "PROJECTONLINE_PLAN_1"
+    },
+    {
+        "ProductName":  "PROJECT ONLINE PROFESSIONAL",
+        "StringId":  "PROJECTPROFESSIONAL"
+    },
+    {
+        "ProductName":  "PROJECT ONLINE WITH PROJECT FOR OFFICE 365",
+        "StringId":  "PROJECTONLINE_PLAN_2"
+    },
+    {
+        "ProductName":  "SHAREPOINT ONLINE (PLAN 1)",
+        "StringId":  "SHAREPOINTSTANDARD"
+    },
+    {
+        "ProductName":  "SHAREPOINT ONLINE (PLAN 2)",
+        "StringId":  "SHAREPOINTENTERPRISE"
+    },
+    {
+        "ProductName":  "SKYPE FOR BUSINESS ONLINE (PLAN 1)",
+        "StringId":  "MCOIMP"
+    },
+    {
+        "ProductName":  "SKYPE FOR BUSINESS ONLINE (PLAN 2)",
+        "StringId":  "MCOSTANDARD"
+    },
+    {
+        "ProductName":  "SKYPE FOR BUSINESS PSTN DOMESTIC AND INTERNATIONAL CALLING",
+        "StringId":  "MCOPSTN2"
+    },
+    {
+        "ProductName":  "SKYPE FOR BUSINESS PSTN DOMESTIC CALLING",
+        "StringId":  "MCOPSTN1"
+    },
+    {
+        "ProductName":  "SKYPE FOR BUSINESS PSTN DOMESTIC CALLING (120 Minutes)",
+        "StringId":  "MCOPSTN5"
+    },
+    {
+        "ProductName":  "VISIO ONLINE PLAN 1",
+        "StringId":  "VISIOONLINE_PLAN1"
+    },
+    {
+        "ProductName":  "VISIO Online Plan 2",
+        "StringId":  "VISIOCLIENT"
+    },
+    {
+        "ProductName":  "WINDOWS 10 ENTERPRISE E3",
+        "StringId":  "WIN10_PRO_ENT_SUB"
+    },
+    {
+        "ProductName":  "Windows 10 Enterprise E5",
+        "StringId":  "WIN10_VDA_E5"
+    },
+    {
+        "ProductName":  "WINDOWS STORE FOR BUSINESS",
+        "StringId":  "WINDOWS_STORE"
+    }
+]

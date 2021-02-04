@@ -206,25 +206,32 @@ Function New-M365UsageCollectorJob{
     $taskAction = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument $taskActionArgument
     $taskDescription = "Collect usage data from Microsoft 365 cloud"
     $taskCredentials = Get-Credential -Message "Scheduled task credential to run once"
-    $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -RunLevel Highest
+    $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
+    $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
     $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     try{        
         if(!(Get-ScheduledTask m365usagecollector -ErrorAction Ignore)){
-            Register-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -Description $taskDescription -ErrorAction Stop
+            Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Task user and action configured"
+            Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Task principal configured"
         }
         else{
-            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -User $taskPrincipal.UserId -Action $taskAction -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -Principal $taskPrincipal -Action $taskAction -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Task user and action configured"
+            Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Task principal configured"
         }
-        Write-Log -Status "Info" -Message "Task $($taskName) created and configured to run with user $($taskCredentials.UserName) once"
+        Write-Log -Status "Info" -Message "Task $($taskName) configured successfully to run with user $($taskCredentials.UserName)"
         Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        Write-Log -Status "Info" -Message "Task $($taskName) started successfully. For more details check on Windows Task Scheduler"
+        Write-Log -Status "Info" -Message "Task $($taskName) started successfully. For more details and status, use Windows Task Scheduler"
     }
     catch{
         Write-Warning $_.Exception.Message
-        Write-Log -Status "Error" -Message $_.Exception.Message
+        Write-Log -Status "Error either to create or set the task: " -Message $_.Exception
     }
 }
 
