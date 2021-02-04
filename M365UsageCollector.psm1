@@ -22,7 +22,7 @@
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 #>
 
-$currentVersion = "0.0.6" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
+$currentVersion = "v0.0.6-beta.2" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
@@ -202,7 +202,8 @@ Function New-M365UsageCollectorJob{
     )
 
     $taskName = "M365UsageCollector"
-    $taskAction = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument '-File "C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.6\temp.ps1"'
+    $taskActionArgument = "-File `"C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\$currentVersion\temp.ps1`""
+    $taskAction = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument $taskActionArgument
     $taskDescription = "Collect usage data from Microsoft 365 cloud"
     $taskCredentials = Get-Credential -Message "Scheduled task credential to run once"
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -RunLevel Highest
