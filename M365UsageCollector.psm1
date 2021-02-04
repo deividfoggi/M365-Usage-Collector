@@ -148,13 +148,14 @@ Function New-ParseJob{
 
     $i = 1
     foreach($users in $usersChunks){
+
         $ParamList = @{
-            FileName = "$($i).csv"
+            FileName = "$installDir\temporary_$i.csv"
             Users = $users
         }
         $PowerShell = [powershell]::Create()
         $PowerShell.RunspacePool = $RunspacePool
-        $PowerShell.AddScript({param ($FileName,$Users) $Users | Export-Csv "$($FileName).csv"})
+        $PowerShell.AddScript({param ($FileName,$Users) $Users | Export-Csv $FileName})
         $PowerShell.AddParameters($ParamList)
         $jobs += $PowerShell.BeginInvoke()
         $i++
