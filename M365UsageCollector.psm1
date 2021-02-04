@@ -133,10 +133,11 @@ Function ConnectAzureAD{
 }
 
 #Beta function to parse a batch of users in a report
-Function New-ParseJob{
+Function New-M365UsageParseJob{
     Param(
         [array]$UserList,
-        [array]$Report
+        [array]$TeamsUserActivityUserDetail,
+        [array]$Office365ActiveUserDetail
     )
 
     #Creates a Runspace pool limited to 10 threads
@@ -148,19 +149,73 @@ Function New-ParseJob{
 
     $i = 1
     foreach($users in $usersChunks){
-
         $ParamList = @{
             FileName = "$installDir\temporary_$i.csv"
             Users = $users
+            TeamsUserActivityUserDetail = $teamsUserActivityUserDetail
+            Office365ActiveUserDetail = $office365ActiveUserDetail
         }
         $PowerShell = [powershell]::Create()
         $PowerShell.RunspacePool = $RunspacePool
-        $PowerShell.AddScript({param ($FileName,$Users) $Users | Export-Csv $FileName})
+        $PowerShell.AddScript({
+            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail)
+            #Empty array to append all users objects
+            $joinedObjects = @()
+            #For each user in array users
+            foreach($user in $Users){
+                #Extract from the teams activity user detail report the current user findings
+                $userteamsUserActivityUserDetail = $TeamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
+
+                #Extract from the teams active user detail report the current user findings
+                $office365ActiveUserDetailUser = $Office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
+
+                #Create a ps custom object to store current user findings
+                $userObj = [PSCustomObject] @{
+                    #Sanitize UserPrincipalName and DisplayName to remove PII
+                    UserPrincipalName = "Sanitized"
+                    DisplayName = "Sanitized"
+
+                    #Fill the following attributes accordingly
+                    Department = $user.Department
+                    IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
+                    DeletedDate = $office365ActiveUserDetailUser.'Deleted Date'
+                    
+                    HasOneDriveLicense = $office365ActiveUserDetailUser.'Has OneDrive License'
+                    HasSharePointLicense = $office365ActiveUserDetailUser.'Has SharePoint License'
+                    HasSkypeForBusinessLicense = $office365ActiveUserDetailUser.'Has Skype For Business License'
+                    HasYammerLicense = $office365ActiveUserDetailUser.'Has Yammer License'
+                    HasTeamsLicense = $office365ActiveUserDetailUser.'Has Teams License'
+                    ExchangeLastActivityDate = $office365ActiveUserDetailUser.'Exchange Last Activity Date'
+                    OneDriveLastActivityDate = $office365ActiveUserDetailUser.'OneDrive Last Activity Date'
+                    SharePointLastActivityDate = $office365ActiveUserDetailUser.'SharePoint Last Activity Date'
+                    SkypeForBusinessLastActivityDate = $office365ActiveUserDetailUser.'Skype For Business Last Activity Date'
+                    YammerLastActivityDate = $office365ActiveUserDetailUser.'Yammer Last Activity Date'
+                    TeamsLastActivityDate = $office365ActiveUserDetailUser.'Teams Last Activity Date'
+                    ExchangeLicenseAssignDate = $office365ActiveUserDetailUser.'Exchange License Assign Date'
+                    OneDriveLicenseAssignDate = $office365ActiveUserDetailUser.'OneDrive License Assign Date'
+                    SharePointLicenseAssignDate = $office365ActiveUserDetailUser.'SharePoint License Assign Date'
+                    SkypeForBusinessLicenseAssignDate = $office365ActiveUserDetailUser.'Skype For Business License Assign Date'
+                    YammerLicenseAssignDate = $office365ActiveUserDetailUser.'Yammer License Assign Date'
+                    TeamsLicenseAssignDate = $office365ActiveUserDetailUser.'Teams License Assign Date'
+                    AssignedProducts = $office365ActiveUserDetailUser.'Assigned Products'
+                    LastActivityDate = $userteamsUserActivityUserDetail.'Last Activity Date'
+                    TeamChatMessageCount = $userteamsUserActivityUserDetail.'Team Chat Message Count'
+                    PrivateChatMessageCount = $userteamsUserActivityUserDetail.'Private Chat Message Count'
+                    CallCount = $userteamsUserActivityUserDetail.'Call Count'
+                    MeetingCount = $userteamsUserActivityUserDetail.'Meeting Count'
+                    HasOtherAction = $userteamsUserActivityUserDetail.'Has Other Action'
+                    ReportPeriod = $userteamsUserActivityUserDetail.'Report Period'
+                }
+                #Append current object into the array
+                $joinedObjects += $userObj
+            }
+            $joinedObjects | Export-Csv $FileName -NoTypeInformation
+        })
         $PowerShell.AddParameters($ParamList)
         $jobs += $PowerShell.BeginInvoke()
         $i++
     }
-    While($Jobs.IsCompleted -contains $false){Write-Warning "Processing..."}
+    While($Jobs.IsCompleted -contains $false){}
 }
 
 #Function to split an array of objects
@@ -192,6 +247,25 @@ Function Split-Array{
     }
     Until($i -gt $numberOfJobs + 1)
     return,$result
+}
+#Function to merge all temporary report files into one last file
+Function Join-TemporaryFiles{
+    Param(
+        $ReportName
+    )
+
+    #Define the temporary file path pattern
+    $files = Get-Item -Path "$($installDir)\temporary_*.csv"
+    #Define the name of the final report based on report name parameter
+    $reportFile = "$installDir\$ReportName.csv"
+
+    #For each temporary file generated by New-M365UsageParseJob function
+    ForEach($file in $files){
+        #Imports the current file
+        $currentFile = Import-Csv $file
+        #Append current file into the final report
+        $currentFile | Export-Csv $reportFile -Append -NoTypeInformation
+    }
 }
 
 Function New-M365UsageCollectorJob{
@@ -461,14 +535,15 @@ Function Get-TeamsUsageReport{
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
 
     #Beta function - multi-thread
-    New-ParseJob -UserList $users -Report $office365ActiveUserDetail
+    New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
+
+    Join-TemporaryFiles -ReportName "M365UsageReport_Detailed"
     
     #Extract unique department strings from users endpoint result
     $departments = ($users | Select-Object Department -Unique).department
 
     #Create an empty array to append ps custom objects
     $joinedObjects = @()
-
         
     <#
     #Incrementation control variable for progress bar
@@ -554,7 +629,6 @@ Function Get-TeamsUsageReport{
 
     #For each unique department found in users end point api, uses the grouped objects above to build up a teams usage score
     foreach($department in $departments){
-
         #Due to comparisons need, if department is blank set it as $null
         if(!$department){
             $department = $null
