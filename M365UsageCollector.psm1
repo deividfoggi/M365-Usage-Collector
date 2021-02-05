@@ -92,6 +92,7 @@ if(!(Get-Command -Module AzureAD) -And !(Get-Command -Module AzureADPreview)){
         Write-Warning $_.Exception.Message
         Write-Log -Status "Error" -Message "Error tyring to install AzureAD Module: $($_.Exception)"
         try{
+            Write-Host -ForegroundColor Yellow "Trying to Install AzureADPreview module"
             Install-Module AzureADPreview -ErrorAction Stop
             Write-Log -Status "Info" -Message "AzureADPreview module installed sucessfully"
         }
@@ -111,6 +112,7 @@ if(!(Get-Command -Module AzureAD) -And !(Get-Command -Module AzureADPreview)){
         Write-Warning $_.Exception.Message
         Write-Log -Status "Error" -Message "Error tyring to import AzureAD Module: $($_.Exception)"
         try{
+            Write-Host -ForegroundColor Yellow "AzureADPreview module already installed. Trying to import it"
             Import-Module AzureADPreview -ErrorAction Stop
             Write-Log -Status "Info" -Message "AzureADPreview module imported sucessfully"
         }
