@@ -22,7 +22,7 @@
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 #>
 
-$currentVersion = "v0.0.7.beta.1"
+$currentVersion = "v0.0.7.beta.2"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
@@ -54,14 +54,14 @@ Function Write-Log{
     }
 }
 
-Write-Warning "Checking if an installation directory is needed"
+Write-Host -ForegroundColor Yellow "Checking if an installation directory is needed"
 if(!(Test-Path $modulePath)){
-    Write-Warning "Creating the installation directory"
+    Write-Host -ForegroundColor Yellow "Creating the installation directory"
     try{
         New-Item -ItemType Directory -Path $installDir -Force -ErrorAction Stop
-        Write-Warning "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
+        Write-Host -ForegroundColor Yellow "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
         Write-Log -Status "Info" -Message "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
-        Write-Warning "Installing M365 Usage Collector Module"
+        Write-Host -ForegroundColor Yellow "Installing M365 Usage Collector Module"
         $moduleContent = Get-Content .\M365USageCollector.psm1 -ErrorAction Stop
         $moduleContent | Set-Content -Path $modulePath -Force -ErrorAction Stop
         Write-Log -Status "Info" -Message "Module successfully installed"
@@ -73,7 +73,7 @@ if(!(Test-Path $modulePath)){
     }
 }
 else{
-    Write-Warning "Installation directory already created"
+    Write-Host -ForegroundColor Yellow "Installation directory already created"
 }
 
 #Temporary set PSGallery as a trusted source to prevent in-screen prompt due to untrusted ps repository which will freeze scheduled task execution
@@ -136,7 +136,7 @@ Function ConnectAzureAD{
     catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException]
     {
         #If a 'need auth' exception then connect to Azure AD asking for credentials
-        Write-Warning "Connecting to Azure AD"
+        Write-Host -ForegroundColor Yellow "Connecting to Azure AD"
         Write-Log -Status "Info" -Message "Connecting to Azure AD"
         Connect-AzureAD
     }
@@ -225,7 +225,7 @@ Function New-M365UsageParseJob{
         $jobs += $PowerShell.BeginInvoke()
         $i++
     }
-    While($Jobs.IsCompleted -contains $false){Write-Warning "Parsing users...";Start-Sleep -Seconds 3;Clear-Host}
+    While($Jobs.IsCompleted -contains $false){Write-Host -ForegroundColor Yellow "Parsing users...";Start-Sleep -Seconds 3;Clear-Host}
 }
 
 #Function to split an array of objects
@@ -415,7 +415,7 @@ Function Get-AzureADToken{
     $postData = "client_id=" + $AppId + "&scope=https://graph.microsoft.com/.default&client_secret=" + $ClientSecret + "&grant_type=client_credentials"
     try{
         $accessToken = Invoke-RestMethod -Method post -Uri $stringUrl -ContentType "application/x-www-form-urlencoded" -Body $postData  -ErrorAction Stop
-        Write-Warning "Access token acquired."
+        Write-Host -ForegroundColor Yellow "Access token acquired."
         return $accessToken
     }
     catch{
@@ -516,11 +516,15 @@ Function Get-M365LicenseSkuReport {
 
 #Function to get teams usage report from Graph Reports API
 Function Get-TeamsUsageReport{
+    [CmdletBinding()]
     Param(
         [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
-        [Parameter(Mandatory=$true)]$ReportMode
+        [Parameter(Mandatory=$true)]$ReportMode,
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("D7","D30","D90","D180")]
+        $TimeSpan = "D30"
     )
 
     #Register in a variable the start datetime for statistics purposes
@@ -544,9 +548,9 @@ Function Get-TeamsUsageReport{
     
     Write-Log -Status "Info" -Message "Starting the request for reports: Teams User Activity Detail and Office 365 Active User Detail"
     #Send graph api requests against reports API to get teams reports considering a 30 days time span
-    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='D180')")|ConvertFrom-Csv
+    $teamsUserActivityUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getTeamsUserActivityUserDetail(period='$TimeSpan')")|ConvertFrom-Csv
     Write-Log -Status "Info" -Message "Finished the collection of Teams User Activity Detail report"
-    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='D180')")|ConvertFrom-Csv
+    $office365ActiveUserDetail = (Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/reports/getOffice365ActiveUserDetail(period='$TimeSpan')")|ConvertFrom-Csv
     Write-Log -Status "Info" -Message "Finished the collection of Office 365 Active User Detail report"
 
     Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
