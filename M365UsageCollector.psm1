@@ -335,16 +335,23 @@ Function Group-TeamsReportBy{
     $teamsMauStartDate = (Get-Date).AddDays(-($TimeSpan.substring($TimeSpan.length -2, 2)))
     $teamsMauStartDate = [datetime]::ParseExact($teamsMauStartDate.ToString('yyyy-MM-dd'), 'yyyy-MM-dd', $null)
 
-    $activityDate = [datetime]::ParseExact("$activityDate", 'MM-d-yyyy', $null)
 
     #Group users with teams license
     $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
     #Group users without teams license
     $usersPerAttrWithoutTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object $GroupByAttribute
-    #Group users with teams MAU
-    $usersPerAttrWithTeamsMAU = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne "" -and [datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd',$null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
-    #Group users with no teams MAU
-    $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq "" -and [datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd',$null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    #Group users with teams MAU first collecting those without empty attribute
+    $usersPerAttrWithTeamsMAU = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""}
+    #Group users with teams MAU considering only those with attribute filed + last activity date newer than the date of TimeSpan variable which is the report period (possible report periods: D30, D60, D90, D180)
+    $usersPerAttrWithTeamsMAU = $usersPerAttrWithTeamsMAU | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    #Group users without teams MAU first collecting those with empty attribute
+    $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""}
+    #Group users without teams MAU now collecting those without empty attribute but last activity date older than the date of TimeSpan variable which is the report period
+    $usersPerAttrWithoutTeamsMAUOlder = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and "" -ne $_.TeamsLastActivityDate}
+    #Group users without teams MAU now collecting those without empty attribute + last activity date older than the date of TimeSpan variable which is the report period
+    $usersPerAttrWithoutTeamsMAUOlder = $usersPerAttrWithoutTeamsMAUOlder | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -lt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    #Summing upp both variables of users without Teams MAU
+    $usersPerAttrWithoutTeamsMAU += $usersPerAttrWithoutTeamsMAUOlder
     #Group users with teams meetings MAU
     $usersPerAttrWithTeamsMeetingMAU = $TeamsUsersList | Where-Object{$_.MeetingCount -gt 0} | Group-Object $GroupByAttribute
 
@@ -360,7 +367,7 @@ Function Group-TeamsReportBy{
 
         #Creates a ps custom object for the current item
         $obj = [PSCustomObject]@{
-            Department = $attr
+            $($GroupByAttribute) = $attr
             UserCount = ($TeamsUsersList | Where-Object{$_.($GroupByAttribute) -eq $attr} | Measure-Object).Count
             HasTeamsLicense = (($usersPerAttrWithTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
             HasNoTeamsLicense = (($usersPerAttrWithoutTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
@@ -593,10 +600,14 @@ Function Get-TeamsUsageReport{
     #Get an Azure AD token using app reg info
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
-    #Define summary report name
-    $m365UsageReportSummaryName = "M365UsageReport_Summary"
+    #Define summary report name by department
+    $m365UsageReportSummaryNameByDepartment = "M365UsageReport_Summary_ByDepartment"
     #Detailed report path
-    $summaryReportPath = $installDir + "\$($m365UsageReportSummaryName)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+    $summaryReportPathByDepartment = $installDir + "\$($m365UsageReportSummaryNameByDepartment)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+    #Define summary report name by domain name
+    $m365UsageReportSummaryNameByDomainName = "M365UsageReport_Summary_ByDomainName"
+    #Detailed report path
+    $summaryReportPathByDomainName = $installDir + "\$($m365UsageReportSummaryNameByDomainName)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
     #Define detailed report name
     $m365UsageReportDetailedName = "M365UsageReport_Detailed"
     #Detailed report path
@@ -619,6 +630,8 @@ Function Get-TeamsUsageReport{
     Write-Log -Status "Info" -Message "Finish to extract unique departments"
     Write-Log -Status "Info" -Message "Starting the request from all domains in Azure AD"
     $domains = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/domains"
+    #Extract unique domains strings from domains endpoint result
+    $domains = ($domains | Select-Object id -Unique).id
 
     #Beta function - multi-thread
     New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
@@ -634,6 +647,8 @@ Function Get-TeamsUsageReport{
     $joinedObjects = Import-Csv $detailedReportPath
 
     $screenReport = Group-TeamsReportBy -GroupByAttribute "Department" -TeamsUsersList $joinedObjects -UniqueGroupByAttributeList $departments -TimeSpan $TimeSpan
+
+    $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $joinedObjects -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
 
     <#
 
@@ -692,10 +707,12 @@ Function Get-TeamsUsageReport{
         "Export"{
             #$summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
             #$detailedReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            $screenReport | Export-Csv $summaryReportPath -NoTypeInformation
+            $screenReport | Export-Csv $summaryReportPathByDepartment -NoTypeInformation
+            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation
             Write-Host "Report saved in the following files:
-                Summarized report - $((Get-Item $summaryReportPath).FullName)
-                Per user report - $((Get-Item $detailedReportPath).FullName)."
+            Summarized report by department - $((Get-Item $summaryReportPathByDepartment).FullName)
+            Summarized report by domain name - $((Get-Item $summaryReportPathByDomainName).FullName)
+            Per user report - $((Get-Item $detailedReportPath).FullName)"
             #Exports to a csv the subscribed license sku report
             Write-Log -Status "Info" -Message "Start to collect Licenses SKU report"
             Get-LicenseSkuReport -Export $true
@@ -705,10 +722,12 @@ Function Get-TeamsUsageReport{
         "AsJob"{
             #$summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
             #$detailedReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            $screenReport | Export-Csv $summaryReportPath -NoTypeInformation
+            $screenReport | Export-Csv $summaryReportPathByDepartment -NoTypeInformation
+            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation
             #$joinedObjects | Export-Csv $detailedReportPath -NoTypeInformation
             Write-Host "Report saved in the following files:
-                Summarized report - $((Get-Item $summaryReportPath).FullName)
+                Summarized report by department - $((Get-Item $summaryReportPathByDepartment).FullName)
+                Summarized report by domain name - $((Get-Item $summaryReportPathByDomainName).FullName)
                 Per user report - $((Get-Item $detailedReportPath).FullName)"
         }
     }
