@@ -323,6 +323,60 @@ Function New-M365UsageCollectorJob{
     }
 }
 
+#Function to group teams report by a specific attribute such as department or domain
+Function Group-TeamsReportBy{
+    Param(
+        $GroupByAttribute,
+        $TeamsUsersList,
+        $UniqueGroupByAttributeList,
+        $TimeSpan
+    )
+
+    $teamsMauStartDate = (Get-Date).AddDays(-($TimeSpan.substring($TimeSpan.length -2, 2)))
+    $teamsMauStartDate = [datetime]::ParseExact($teamsMauStartDate.ToString('yyyy-MM-dd'), 'yyyy-MM-dd', $null)
+
+    $activityDate = [datetime]::ParseExact("$activityDate", 'MM-d-yyyy', $null)
+
+    #Group users with teams license
+    $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
+    #Group users without teams license
+    $usersPerAttrWithoutTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object $GroupByAttribute
+    #Group users with teams MAU
+    $usersPerAttrWithTeamsMAU = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne "" -and [datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd',$null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    #Group users with no teams MAU
+    $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq "" -and [datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd',$null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    #Group users with teams meetings MAU
+    $usersPerAttrWithTeamsMeetingMAU = $TeamsUsersList | Where-Object{$_.MeetingCount -gt 0} | Group-Object $GroupByAttribute
+
+    #Creates an array to append ps custom objects as a final scorecard
+    $scoreReport = @()
+
+    #Foreach unique attribute found in users endpoint api, uses the grouped objects above to build up a teams usage score
+    foreach($attr in $UniqueGroupByAttributeList){
+        #Check if variable is not empty
+        if($null -eq $attr){
+            $attr = ""
+        }
+
+        #Creates a ps custom object for the current item
+        $obj = [PSCustomObject]@{
+            Department = $attr
+            UserCount = ($TeamsUsersList | Where-Object{$_.($GroupByAttribute) -eq $attr} | Measure-Object).Count
+            HasTeamsLicense = (($usersPerAttrWithTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            HasNoTeamsLicense = (($usersPerAttrWithoutTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            HasTeamsActivity = (($usersPerAttrWithTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            HasNoTeamsActivity = (($usersPerAttrWithoutTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            HasMeeting = (($usersPerAttrWithTeamsMeetingMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+        }
+        $scoreReport += $obj
+    }
+    Write-Log -Status "Info" -Message "Finished the build of teams usage score"
+    Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
+
+    return $scoreReport
+
+}
+
 #Function to create an application registration in Azure AD to be used to connect to Graph API
 Function New-M365UsageCollectorAppRegistration {
         #Connects to Azure AD
@@ -563,8 +617,8 @@ Function Get-TeamsUsageReport{
     #Extract unique department strings from users endpoint result
     $departments = ($users | Select-Object Department -Unique).department
     Write-Log -Status "Info" -Message "Finish to extract unique departments"
-    Write-Log -Status "Info" -Message "Start to extract unique domains"
-
+    Write-Log -Status "Info" -Message "Starting the request from all domains in Azure AD"
+    $domains = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/domains"
 
     #Beta function - multi-thread
     New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
@@ -578,6 +632,10 @@ Function Get-TeamsUsageReport{
 
     #Get all users in final report
     $joinedObjects = Import-Csv $detailedReportPath
+
+    $screenReport = Group-TeamsReportBy -GroupByAttribute "Department" -TeamsUsersList $joinedObjects -UniqueGroupByAttributeList $departments -TimeSpan $TimeSpan
+
+    <#
 
     #Group by department users who has teams license
     $usersPerDepartmentWithTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
@@ -620,6 +678,8 @@ Function Get-TeamsUsageReport{
 
     Write-Log -Status "Info" -Message "Finished the build of teams usage score"
     Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
+
+    #>
 
     #Uses the ReportMode parameter input to define the output action
     switch($ReportMode){
