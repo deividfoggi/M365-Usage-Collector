@@ -568,9 +568,9 @@ Function Send-GraphRequest{
         return $queryResults
     }
     catch{
+        Write-Log -Status "Error" -Message $_
         $errorDescription = $_ | ConvertFrom-Json
-        Write-Warning $errorDescription.error
-        Write-Host $errorDescription.error_description -ForegroundColor Yellow
+        Write-Log -Status "Error" -Message $errorDescription
     }
 }
 
