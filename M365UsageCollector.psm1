@@ -183,7 +183,7 @@ Function New-M365UsageParseJob{
         $PowerShell.AddScript({
             param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail)
             #Empty array to append all users objects
-            $joinedObjects = @()
+            $parsedUserList = @()
             #For each user in array users
             foreach($user in $Users){
                 #Extract from the teams activity user detail report the current user findings
@@ -194,9 +194,9 @@ Function New-M365UsageParseJob{
                 $userObj = [PSCustomObject] @{
                     #Sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
                     UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
-                    DisplayName = "Sanitized"
                     #Fill the following attributes accordingly
                     Department = $user.Department
+                    OfficeLocation = $user.officeLocation
                     IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
                     DeletedDate = $office365ActiveUserDetailUser.'Deleted Date'
                     HasTeamsLicense = $office365ActiveUserDetailUser.'Has Teams License'
@@ -210,10 +210,10 @@ Function New-M365UsageParseJob{
                     ReportPeriod = $userteamsUserActivityUserDetail.'Report Period'
                 }
                 #Append current object into the array
-                $joinedObjects += $userObj
+                $parsedUserList += $userObj
             }
             #Export objects to a temporary file
-            $joinedObjects | Export-Csv $FileName -NoTypeInformation
+            $parsedUserList | Export-Csv $FileName -NoTypeInformation -Encoding UTF8
         })
         Write-Log -Status "Info" -Message "Invoking runspace $($i) of $($usersChunks.length)"
         #Add the parameter list into current runspace
@@ -288,7 +288,7 @@ Function Join-TemporaryFiles{
         #Imports the current file
         $currentFile = Import-Csv $file
         #Append current file into the final report
-        $currentFile | Export-Csv $ReportPath -Append -NoTypeInformation
+        $currentFile | Export-Csv $ReportPath -Append -NoTypeInformation -Encoding UTF8
     }
     #Remove temporary files
     $files | Remove-Item -Force -Confirm:$false
@@ -299,7 +299,8 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
-        [Parameter(Mandatory=$true)]$ReportMode
+        #[Parameter(Mandatory=$true)]$ReportMode
+        [Parameter(Mandatory=$false)]$TeamsReportGroupByAttributes
     )
 
     #Scheduled task settings
@@ -311,7 +312,7 @@ Function New-M365UsageCollectorJob{
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
     $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
-    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $TeamsReportGroupByAttributes;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     #Try to check if the shceduled task already exists
@@ -410,7 +411,6 @@ Function Group-TeamsReportBy{
         $scoreReport += $obj
     }
     Write-Log -Status "Info" -Message "Finished to group users by $($GroupByAttribute)"
-    Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
 
     #Return all objects appended in one array
     return $scoreReport
@@ -571,7 +571,7 @@ Function Send-GraphRequest{
 }
 
 #Function to get a license sku report using Azure AD module
-Function Get-M365LicenseSkuReport {
+Function Get-M365LicenseSkuReport{
     Param(
         [Parameter(Mandatory=$false)]$Export
     )
@@ -616,7 +616,10 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$true)]$AppId,
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
-        [Parameter(Mandatory=$true)]$ReportMode,
+        #[Parameter(Mandatory=$true)]$ReportMode,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Department","Domain","officeLocation")]
+        [array]$TeamsReportGroupByAttributes,
         [Parameter(Mandatory=$false)]
         [ValidateSet("D7","D30","D90","D180")]
         $TimeSpan = "D30"
@@ -640,6 +643,10 @@ Function Get-TeamsUsageReport{
     $m365UsageReportSummaryNameByDomainName = "M365UsageReport_Teams_Summary_ByDomainName"
     #Detailed report path
     $summaryReportPathByDomainName = $installDir + "\$($m365UsageReportSummaryNameByDomainName)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+    #Define summary report name by officeLocation
+    $m365UsageReportSummaryNameByofficeLocation = "M365UsageReport_Teams_Summary_ByOfficeLocation"
+    #Detailed report path
+    $summaryReportPathByofficeLocation = $installDir + "\$($m365UsageReportSummaryNameByofficeLocation)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
     #Define detailed report name
     $m365UsageReportDetailedName = "M365UsageReport_Detailed"
     #Detailed report path
@@ -654,52 +661,96 @@ Function Get-TeamsUsageReport{
 
     Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
     #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
-    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,accountEnabled,assignedLicenses,assignedPlans,city,companyName,country,department,jobTitle,licenseAssignmentStates,officeLocation,postalCode,provisionedPlans,state,streetAddress,usageLocation&`$top=999"
+    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
-    Write-Log -Status "Info" -Message "Start to extract unique deparments"
-    #Extract unique department strings from users endpoint result
-    $departments = ($users | Select-Object Department -Unique).department
-    Write-Log -Status "Info" -Message "Finish to extract unique departments"
-    Write-Log -Status "Info" -Message "Starting the request from all domains in Azure AD"
-    $domains = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/domains"
-    #Extract unique domains strings from domains endpoint result
-    $domains = ($domains | Select-Object id -Unique).id
 
     #Beta function - multi-thread
+    Write-Log -Status "Info" -Message "Start to parse all reportings into one"
     New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
-
     #Run the function to join all temporary files generated by the multi-thread function New-M365UsageParseJob into the final report
     Join-TemporaryFiles -ReportPath $detailedReportPath
+    Write-Log -Status "Info" -Message "Finished the user report parsing"
+    
+    #Get all users in final report
+    $parsedUserList = Import-Csv $detailedReportPath
 
+    Function New-TeamsDepartmentScorecard{
 
-    Write-Log -Status "Info" -Message "Finished the user and department parsing"
+        Write-Log -Status "Info" -Message "Start to extract unique deparments"
+        #Extract unique department strings from users endpoint result
+        $departments = ($users | Select-Object Department -Unique).department
+        Write-Log -Status "Info" -Message "Finish to extract unique departments"
+        $screenReportByDepartment = Group-TeamsReportBy -GroupByAttribute "Department" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $departments -TimeSpan $TimeSpan
+        return $screenReportByDepartment
+    }
+
+    Function New-TeamsDomainScoreCard{
+        Write-Log -Status "Info" -Message "Starting the request from all domains in Azure AD"
+        $domains = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/domains"
+        Write-Log -Status "Info" -Message "Start to extract unique domains"
+        #Extract unique domains strings from domains endpoint result
+        $domains = ($domains | Select-Object id -Unique).id
+        Write-Log -Status "Info" -Message "Finish to extract unique domains"
+        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
+        return $screenReportByDomain
+    }
+
+    Function New-TeamsOfficeLocationScoreCard{
+        Write-Log -Status "Info" -Message "Start to extract unique officeLocation"
+        #Extract unique office locations strings from users endpoint result
+        $officeLocation = ($users | Select-Object officeLocation -Unique).officeLocation
+        Write-Log -Status "Info" -Message "Finish to extract unique officeLocation"
+        $screenReportByOfficeLocation = Group-TeamsReportBy -GroupByAttribute "officeLocation" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $officeLocation -TimeSpan $TimeSpan
+        return $screenReportByOfficeLocation
+    }
+
     Write-Log -Status "Info" -Message "Start to group objects"
 
-    #Get all users in final report
-    $joinedObjects = Import-Csv $detailedReportPath
-
-    $screenReport = Group-TeamsReportBy -GroupByAttribute "Department" -TeamsUsersList $joinedObjects -UniqueGroupByAttributeList $departments -TimeSpan $TimeSpan
-
-    $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $joinedObjects -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
+    if(!$TeamsReportGroupByAttributes){
+        $screenReportByDepartment = New-TeamsDepartmentScorecard
+        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
+        $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
+        $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
+        $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
+    }
+    else{
+        foreach($attribute in $TeamsReportGroupByAttributes){            
+            switch ($attribute) {
+                "Department" {
+                    $screenReportByDepartment = New-TeamsDepartmentScorecard
+                    $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
+                }
+                "Domain" {
+                    $screenReportByDomain = New-TeamsDomainScoreCard
+                    $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
+                }
+                "officeLocation"{
+                    $screenReportByOfficeLocation = New-TeamsOfficeLocationScoreCard
+                    $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
+                }
+                Default {}
+            }
+        }
+    }
 
     <#
 
     #Group by department users who has teams license
-    $usersPerDepartmentWithTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
+    $usersPerDepartmentWithTeams = $parsedUserList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
     #Group by department users who has no teams license
-    $usersPerDepartmentWithoutTeams = $joinedObjects | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object Department
+    $usersPerDepartmentWithoutTeams = $parsedUserList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object Department
     #Group by department users who has activity last date
-    $usersPerDepartmentWithActivity = $joinedObjects | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
+    $usersPerDepartmentWithActivity = $parsedUserList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
     #Group by department users who has no activity last date
-    $usersPerDepartmentWithoutActivity = $joinedObjects | Where-Object{$null -eq $_.TeamsLastActivityDate-or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
+    $usersPerDepartmentWithoutActivity = $parsedUserList | Where-Object{$null -eq $_.TeamsLastActivityDate-or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
     #Group by department users who has teams meeting count greater than 0
-    $usersPerDepartmentWithMeeting = $joinedObjects | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
+    $usersPerDepartmentWithMeeting = $parsedUserList | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
 
     Write-Log -Status "Info" -Message "Finished to group objects"
     Write-Log -Status "Info" -Message "Start to build teams usage score"
 
     #Creates an array to append ps custom objects
-    $screenReport = @()
+    $screenReportByDepartment = @()
 
     #For each unique department found in users end point api, uses the grouped objects above to build up a teams usage score
     foreach($department in $departments){
@@ -720,53 +771,34 @@ Function Get-TeamsUsageReport{
 
         }
         #Append the current ps custom object into the array
-        $screenReport += $obj
+        $screenReportByDepartment += $obj
     }
 
     Write-Log -Status "Info" -Message "Finished the build of teams usage score"
     Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
 
-    #>
-
     #Uses the ReportMode parameter input to define the output action
     switch($ReportMode){
-        #Prints out a scorecard summary
-        "SummaryOnly" {
-            $TeamsUsageSummary = $screenReport
-            return $TeamsUsageSummary
-        }
         #Exports both summary and detailed scorecard
         "Export"{
-            #$summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            #$detailedReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            $screenReport | Export-Csv $summaryReportPathByDepartment -NoTypeInformation
-            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation
-            Write-Host "Report saved in the following files:
-            Summarized report by department - $((Get-Item $summaryReportPathByDepartment).FullName)
-            Summarized report by domain name - $((Get-Item $summaryReportPathByDomainName).FullName)
-            Per user report - $((Get-Item $detailedReportPath).FullName)"
-            #Exports to a csv the subscribed license sku report
-            Write-Log -Status "Info" -Message "Start to collect Licenses SKU report"
-            Get-LicenseSkuReport -Export $true
-            Write-Log -Status "Info" -Message "Finished the collection of Licenses SKU report"
+            $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
+            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
+            $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
         }
         #Exports both summary and per user detail scorecard
         "AsJob"{
-            #$summaryReportPath = $installDir + "\TeamsUsageData_Summary_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            #$detailedReportPath = $installDir + "\TeamsUsageData_PerUser$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
-            $screenReport | Export-Csv $summaryReportPathByDepartment -NoTypeInformation
-            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation
-            #$joinedObjects | Export-Csv $detailedReportPath -NoTypeInformation
-            Write-Host "Report saved in the following files:
-                Summarized report by department - $((Get-Item $summaryReportPathByDepartment).FullName)
-                Summarized report by domain name - $((Get-Item $summaryReportPathByDomainName).FullName)
-                Per user report - $((Get-Item $detailedReportPath).FullName)"
+            $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
+            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
+            $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
         }
     }
+    #>
+
 
     #Stop the watch and register the time spent to export teams usage report
     $stopWatchStop = Get-Date
     $stopWatchResult = New-TimeSpan -Start $stopWatchStart -End $stopWatchStop
+    #Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
     Write-Log -Status "Info" -Message "Teams Usage Report execution time: $($stopWatchResult.ToString("dd\.hh\:mm\:ss"))"
 }
 
