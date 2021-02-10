@@ -234,28 +234,43 @@ Function Split-Array{
     $Array,
     $ObjectLimit
 )
-
+    #Define the chunk size
     [int]$blockLimit = $ObjectLimit
+    #Math the number of jobs/chunks
     $numberOfJobs = [math]::Floor($Array.length / $blockLimit)
+    #Get the rest/mod for the last one
     $lastJobCount = $Array.Length % $blockLimit
+    #interaction control variable
     $i = 1
+    #Define an array to store all the arrays
     $result = @()
+    #Do the calculations until $i variable is greater than the number of chunks plus 1
     Do{
+        #If the interaction variable is equal to the number of chunks plus 1 this is the last chunk
         if($i -eq ($numberOfJobs + 1)){
+            #The variable of the first object in the current chunk becomes the rest/mod all chunks divided the chunk size
             $varFirst = $lastJobCount
+            #The variable of the number of objects to skip becomes the number of objects multipled by current interaction value minus 1
             $varSkip = $numberOfObj * ($i - 1)
         }else{
+            #If the interaction variable is not equanto to the number of chunks plus 1 then this is not the last chunk
+            #The number of objects becomes the chunk size
             $numberOfObj = $blockLimit
+            #The first object is the number of objects multiplied by the current interaction
             $varFirstTmp = $numberOfObj * $i
+            #The number of objects to skip is the number of the first object minus the number of objects
             $varSkip = $varFirstTmp - $numberOfObj
+            #The very first object is the number of objects
             $varFirst = $numberOfObj
         }
 
+        #Append to the main array the array of objects considering the first and last objects as the current chunk of objects (Starting in one specific and skipping some accordingly)
         $result+=,@($Array | Select-Object -First $varFirst -Skip $varSkip)
 
         $i++
     }
     Until($i -gt $numberOfJobs + 1)
+    #Return an array of arrays as a result
     return,$result
 }
 #Function to merge all temporary report files into one last file
@@ -287,6 +302,7 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$true)]$ReportMode
     )
 
+    #Scheduled task settings
     $taskName = "M365UsageCollector"
     $taskActionArgument = "-File `"C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\$currentVersion\temp.ps1`""
     $taskAction = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument $taskActionArgument
@@ -298,20 +314,28 @@ Function New-M365UsageCollectorJob{
     $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -ReportMode $ReportMode;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
+    #Try to check if the shceduled task already exists
     try{        
-        if(!(Get-ScheduledTask m365usagecollector -ErrorAction Ignore)){
+        #If the task not exists yet
+        if(!(Get-ScheduledTask N365UsageCollector -ErrorAction Ignore)){
+            #ry to register the task
             Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task user and action configured"
+            #Try to set task credentials
             Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task principal configured"
         }
+        #If the task exists already
         else{
+            #Try to set the task with a security principal and its settings to make sure it is configured acordingly before running it
             Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -Principal $taskPrincipal -Action $taskAction -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task user and action configured"
+            #Try to set task credentials
             Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task principal configured"
         }
         Write-Log -Status "Info" -Message "Task $($taskName) configured successfully to run with user $($taskCredentials.UserName)"
+        #Try to start the task
         Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
         Write-Log -Status "Info" -Message "Task $($taskName) started successfully. For more details and status, use Windows Task Scheduler"
     }
@@ -329,6 +353,7 @@ Function Group-TeamsReportBy{
         $UniqueGroupByAttributeList,
         $TimeSpan
     )
+    
 
     $teamsMauStartDate = (Get-Date).AddDays(-($TimeSpan.substring($TimeSpan.length -2, 2)))
     $teamsMauStartDate = [datetime]::ParseExact($teamsMauStartDate.ToString('yyyy-MM-dd'), 'yyyy-MM-dd', $null)
