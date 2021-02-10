@@ -345,12 +345,14 @@ Function Group-TeamsReportBy{
     $usersPerAttrWithTeamsMAU = $usersPerAttrWithTeamsMAU | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
     #Group users without teams MAU first collecting those with empty attribute
     $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""}
+    <#
     #Group users without teams MAU now collecting those without empty attribute but last activity date older than the date of TimeSpan variable which is the report period
     $usersPerAttrWithoutTeamsMAUOlder = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and "" -ne $_.TeamsLastActivityDate}
     #Group users without teams MAU now collecting those without empty attribute + last activity date older than the date of TimeSpan variable which is the report period
     $usersPerAttrWithoutTeamsMAUOlder = $usersPerAttrWithoutTeamsMAUOlder | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -lt $teamsMauStartDate} | Group-Object $GroupByAttribute
     #Summing upp both variables of users without Teams MAU
     $usersPerAttrWithoutTeamsMAU += $usersPerAttrWithoutTeamsMAUOlder
+    #>
     #Group users with teams meetings MAU
     $usersPerAttrWithTeamsMeetingMAU = $TeamsUsersList | Where-Object{$_.MeetingCount -gt 0} | Group-Object $GroupByAttribute
 
@@ -370,9 +372,11 @@ Function Group-TeamsReportBy{
             UserCount = ($TeamsUsersList | Where-Object{$_.($GroupByAttribute) -eq $attr} | Measure-Object).Count
             HasTeamsLicense = (($usersPerAttrWithTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
             HasNoTeamsLicense = (($usersPerAttrWithoutTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
-            HasTeamsActivity = (($usersPerAttrWithTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
-            HasNoTeamsActivity = (($usersPerAttrWithoutTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
-            HasMeeting = (($usersPerAttrWithTeamsMeetingMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            TeamsMAU = (($usersPerAttrWithTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            <#
+            HasNoTeamsMAU = (($usersPerAttrWithoutTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            #>
+            TeamsMeetingsMAU = (($usersPerAttrWithTeamsMeetingMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
         }
         $scoreReport += $obj
     }
