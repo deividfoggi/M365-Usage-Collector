@@ -183,8 +183,8 @@ Function New-M365UsageParseJob{
 
                 #Create a ps custom object to store current user findings
                 $userObj = [PSCustomObject] @{
-                    #Sanitize UserPrincipalName and DisplayName to remove PII
-                    UserPrincipalName = "Sanitized"
+                    #Sanitize UserPrincipalName (keep domain only) and DisplayName to remove PII
+                    UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
                     DisplayName = "Sanitized"
 
                     #Fill the following attributes accordingly
@@ -335,7 +335,6 @@ Function Group-TeamsReportBy{
     $teamsMauStartDate = (Get-Date).AddDays(-($TimeSpan.substring($TimeSpan.length -2, 2)))
     $teamsMauStartDate = [datetime]::ParseExact($teamsMauStartDate.ToString('yyyy-MM-dd'), 'yyyy-MM-dd', $null)
 
-
     #Group users with teams license
     $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
     #Group users without teams license
@@ -380,6 +379,7 @@ Function Group-TeamsReportBy{
     Write-Log -Status "Info" -Message "Finished the build of teams usage score"
     Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
 
+    #Return all objects appended in one array
     return $scoreReport
 
 }
@@ -601,11 +601,11 @@ Function Get-TeamsUsageReport{
     $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
     #Define summary report name by department
-    $m365UsageReportSummaryNameByDepartment = "M365UsageReport_Summary_ByDepartment"
+    $m365UsageReportSummaryNameByDepartment = "M365UsageReport_Teams_Summary_ByDepartment"
     #Detailed report path
     $summaryReportPathByDepartment = $installDir + "\$($m365UsageReportSummaryNameByDepartment)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
     #Define summary report name by domain name
-    $m365UsageReportSummaryNameByDomainName = "M365UsageReport_Summary_ByDomainName"
+    $m365UsageReportSummaryNameByDomainName = "M365UsageReport_Teams_Summary_ByDomainName"
     #Detailed report path
     $summaryReportPathByDomainName = $installDir + "\$($m365UsageReportSummaryNameByDomainName)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
     #Define detailed report name
