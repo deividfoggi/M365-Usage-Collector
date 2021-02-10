@@ -22,7 +22,7 @@
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 #>
 
-$currentVersion = "v0.0.7.beta.2"
+$currentVersion = "v0.0.7.beta.3"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
@@ -363,7 +363,7 @@ Function Group-TeamsReportBy{
 
     #Group users with teams license
     $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
-    
+
     <#
     #Group users without teams license
     $usersPerAttrWithoutTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object $GroupByAttribute
