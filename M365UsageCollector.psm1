@@ -300,7 +300,7 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         #[Parameter(Mandatory=$true)]$ReportMode
-        [Parameter(Mandatory=$false)]$TeamsReportGroupByAttributes
+        [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes
     )
 
     #Scheduled task settings
@@ -312,14 +312,14 @@ Function New-M365UsageCollectorJob{
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
     $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
-    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $TeamsReportGroupByAttributes;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     #Try to check if the shceduled task already exists
     try{        
         #If the task not exists yet
         if(!(Get-ScheduledTask N365UsageCollector -ErrorAction Ignore)){
-            #ry to register the task
+            #Try to register the task
             Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task user and action configured"
             #Try to set task credentials
@@ -328,8 +328,10 @@ Function New-M365UsageCollectorJob{
         }
         #If the task exists already
         else{
-            #Try to set the task with a security principal and its settings to make sure it is configured acordingly before running it
-            Set-ScheduledTask -TaskName $taskName -Settings $taskSettings -Principal $taskPrincipal -Action $taskAction -ErrorAction Stop
+            Unregister-ScheduledTask -TaskName $taskName
+            #ry to register the task
+            #Try to register the task
+            Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task user and action configured"
             #Try to set task credentials
             Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
