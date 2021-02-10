@@ -353,8 +353,10 @@ Function Group-TeamsReportBy{
         $UniqueGroupByAttributeList,
         $TimeSpan
     )
-    
 
+    Write-Log -Status "Info" -Message "Start to group users by $($GroupByAttribute)"
+
+    #Parse string dates to date/time format
     $teamsMauStartDate = (Get-Date).AddDays(-($TimeSpan.substring($TimeSpan.length -2, 2)))
     $teamsMauStartDate = [datetime]::ParseExact($teamsMauStartDate.ToString('yyyy-MM-dd'), 'yyyy-MM-dd', $null)
 
@@ -407,12 +409,11 @@ Function Group-TeamsReportBy{
         }
         $scoreReport += $obj
     }
-    Write-Log -Status "Info" -Message "Finished the build of teams usage score"
+    Write-Log -Status "Info" -Message "Finished to group users by $($GroupByAttribute)"
     Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
 
     #Return all objects appended in one array
     return $scoreReport
-
 }
 
 #Function to create an application registration in Azure AD to be used to connect to Graph API
