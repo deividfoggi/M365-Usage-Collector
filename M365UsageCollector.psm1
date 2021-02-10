@@ -337,15 +337,17 @@ Function Group-TeamsReportBy{
 
     #Group users with teams license
     $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
+    <#
     #Group users without teams license
     $usersPerAttrWithoutTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object $GroupByAttribute
+    #>
     #Group users with teams MAU first collecting those without empty attribute
     $usersPerAttrWithTeamsMAU = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""}
     #Group users with teams MAU considering only those with attribute filed + last activity date newer than the date of TimeSpan variable which is the report period (possible report periods: D30, D60, D90, D180)
     $usersPerAttrWithTeamsMAU = $usersPerAttrWithTeamsMAU | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
+    <#
     #Group users without teams MAU first collecting those with empty attribute
     $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""}
-    <#
     #Group users without teams MAU now collecting those without empty attribute but last activity date older than the date of TimeSpan variable which is the report period
     $usersPerAttrWithoutTeamsMAUOlder = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and "" -ne $_.TeamsLastActivityDate}
     #Group users without teams MAU now collecting those without empty attribute + last activity date older than the date of TimeSpan variable which is the report period
@@ -371,7 +373,9 @@ Function Group-TeamsReportBy{
             $($GroupByAttribute) = $attr
             UserCount = ($TeamsUsersList | Where-Object{$_.($GroupByAttribute) -eq $attr} | Measure-Object).Count
             HasTeamsLicense = (($usersPerAttrWithTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            <#
             HasNoTeamsLicense = (($usersPerAttrWithoutTeams | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
+            #>
             TeamsMAU = (($usersPerAttrWithTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
             <#
             HasNoTeamsMAU = (($usersPerAttrWithoutTeamsMAU | Where-Object{$_.Name -eq $attr}).Group | Measure-Object).Count
