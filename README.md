@@ -8,6 +8,7 @@ Pre-requisites
                 
                 - Reports.Read.All
                 - User.Read.All
+                - Directory.Read.All
 
 - For big environments, a always-on server/machine.
 - A local admin account with administrative privilegies and following GPOs:
@@ -54,7 +55,9 @@ Setup
 
 11.	Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
 
-  New-M365UsageCollectorJob -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -ReportMode "AsJob"
+  Use the attributes you'd like to use as group by attributes in the parameter TeamsReportGroupByAttributes. Consider that each attribute you use will result in a file with a scorecard of teams usage grouped by the given attribute therefore resulting in a longer running time. You can use any combination of the following attributes comma separated: Department ,Domain, and officeLocation.
+  
+  New-M365UsageCollectorJob -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -TeamsReportGroupByAttributes Department,Domain,officeLocation
 
 12. A credential will be asked. This one should be that one with local privilegies to run as a batch job.
 
@@ -86,6 +89,8 @@ Known Issues:
     
     - Log on as a batch job (Start > Run > secpol.msc > Security Settings > Local Policies > User Rights Assignment > Log on as a batch job > check if user is in the list or is a member of a group in the list)
     - Network access: Do not allow storage of passwords and credentiais for network authentication (Start > Run > secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow storage of passwords and credentiais for network authentication > Disabled)
+    
+   Also it may happen if the script can't create the task because it already exists. Just manually delete the task M365UsageCollector in the task scheduler and run New-M365UsageCollectorJob once again.
 
 
 
