@@ -363,6 +363,7 @@ Function Group-TeamsReportBy{
 
     #Group users with teams license
     $usersPerAttrWithTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object $GroupByAttribute
+    
     <#
     #Group users without teams license
     $usersPerAttrWithoutTeams = $TeamsUsersList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object $GroupByAttribute
