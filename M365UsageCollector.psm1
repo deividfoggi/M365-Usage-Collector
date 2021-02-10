@@ -152,14 +152,21 @@ Function New-M365UsageParseJob{
         [array]$Office365ActiveUserDetail
     )
 
+    Write-Log -Status "Info" -Message "Creating a runspace pool with 10 threads limit"
+
     #Creates a Runspace pool limited to 10 threads
-    $RunspacePool = [runspacefactory]::CreateRunspacePool(1,5)
+    $RunspacePool = [runspacefactory]::CreateRunspacePool(1,10)
     $RunspacePool.Open()
+    #Define an array to store all runspaces
     $Jobs = @()
 
+    #Split all users list in smaller chunks
     $usersChunks = Split-Array -Array $UserList -ObjectLimit 1000
 
+    #Increment control variable to be used to name temp files
     $i = 1
+
+    #For each chunk of users in users chunks
     foreach($users in $usersChunks){
         $ParamList = @{
             FileName = "$installDir\temporary_$i.csv"
@@ -167,8 +174,12 @@ Function New-M365UsageParseJob{
             TeamsUserActivityUserDetail = $teamsUserActivityUserDetail
             Office365ActiveUserDetail = $office365ActiveUserDetail
         }
+        Write-Log -Status "Info" -Message "Creating runspace $($i) of $($usersChunks.length)"
+        #Create the powershell runspace
         $PowerShell = [powershell]::Create()
+        #Add runspace into runspace pool
         $PowerShell.RunspacePool = $RunspacePool
+        #Define the script block of the current runs space using the current users chunk
         $PowerShell.AddScript({
             param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail)
             #Empty array to append all users objects
@@ -177,16 +188,13 @@ Function New-M365UsageParseJob{
             foreach($user in $Users){
                 #Extract from the teams activity user detail report the current user findings
                 $userteamsUserActivityUserDetail = $TeamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
-
                 #Extract from the teams active user detail report the current user findings
                 $office365ActiveUserDetailUser = $Office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
-
                 #Create a ps custom object to store current user findings
                 $userObj = [PSCustomObject] @{
-                    #Sanitize UserPrincipalName (keep domain only) and DisplayName to remove PII
+                    #Sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
                     UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
                     DisplayName = "Sanitized"
-
                     #Fill the following attributes accordingly
                     Department = $user.Department
                     IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
@@ -204,13 +212,20 @@ Function New-M365UsageParseJob{
                 #Append current object into the array
                 $joinedObjects += $userObj
             }
+            #Export objects to a temporary file
             $joinedObjects | Export-Csv $FileName -NoTypeInformation
         })
+        Write-Log -Status "Info" -Message "Invoking runspace $($i) of $($usersChunks.length)"
+        #Add the parameter list into current runspace
         $PowerShell.AddParameters($ParamList)
+        #Invoke the execution of current runspace and add it to an array of runspaces to allow tracking
         $jobs += $PowerShell.BeginInvoke()
+        #Increment the control variable
         $i++
     }
-    While($Jobs.IsCompleted -contains $false){Write-Host -ForegroundColor Yellow "Parsing users...";Start-Sleep -Seconds 3;Clear-Host}
+    #While at least on job is not completed, wait for 5 seconds and check again. Script will not move further until all jobs are completed.
+    While($Jobs.IsCompleted -contains $false){Start-Sleep -Seconds 5}
+    Write-Log -Status "Info" -Message "All PowerShell runspaces are completed"
 }
 
 #Function to split an array of objects
