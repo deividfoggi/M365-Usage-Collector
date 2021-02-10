@@ -320,19 +320,20 @@ Function New-M365UsageCollectorJob{
         #If the task not exists yet
         if(!(Get-ScheduledTask N365UsageCollector -ErrorAction Ignore)){
             #Try to register the task
-            Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
-            Write-Log -Status "Info" -Message "Task user and action configured"
+            Register-ScheduledTask -TaskName $taskName -InputObject $task -ErrorAction Stop
+            Write-Log -Status "Info" -Message "New task registered with name M365UsageCollector"
             #Try to set task credentials
             Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task principal configured"
         }
         #If the task exists already
         else{
-            Unregister-ScheduledTask -TaskName $taskName
-            #ry to register the task
+            #Try to remove the existing task
+            Unregister-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Removed the existing task."
             #Try to register the task
             Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
-            Write-Log -Status "Info" -Message "Task user and action configured"
+            Write-Log -Status "Info" -Message "New task registered with name M365UsageCollector"
             #Try to set task credentials
             Set-ScheduledTask -TaskName $taskName -User $taskPrincipal.UserId -Password $taskCredentials.GetNetworkCredential().Password -ErrorAction Stop
             Write-Log -Status "Info" -Message "Task principal configured"
