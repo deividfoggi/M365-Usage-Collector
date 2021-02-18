@@ -55,12 +55,22 @@ Function Write-Log{
 }
 
 Write-Host -ForegroundColor Yellow "Checking if an installation directory is needed"
-if(!(Test-Path $modulePath)){
+if(!(Test-Path $installDir)){
     Write-Host -ForegroundColor Yellow "Creating the installation directory"
     try{
         New-Item -ItemType Directory -Path $installDir -Force -ErrorAction Stop
         Write-Host -ForegroundColor Yellow "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
         Write-Log -Status "Info" -Message "Installation directory created. You can follow all activities in the .log files here: $($installDir)"
+    }
+    catch{
+        Write-Warning "Error: $($_.Exception.Message)"
+        Remove-Module M365UsageCollector -ErrorAction SilentlyContinue
+        Exit
+    }
+}
+
+if(!(Test-Path $modulePath)){
+    try{
         Write-Host -ForegroundColor Yellow "Installing M365 Usage Collector Module"
         $moduleContent = Get-Content .\M365USageCollector.psm1 -ErrorAction Stop
         $moduleContent | Set-Content -Path $modulePath -Force -ErrorAction Stop
@@ -72,9 +82,8 @@ if(!(Test-Path $modulePath)){
         Exit
     }
 }
-else{
-    Write-Host -ForegroundColor Yellow "Installation directory already created"
-}
+
+
 
 #Temporary set PSGallery as a trusted source to prevent in-screen prompt due to untrusted ps repository which will freeze scheduled task execution
 Set-PSRepository PSGallery -InstallationPolicy Trusted
@@ -303,6 +312,11 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes
     )
 
+    #If user doesn't input any group by attribute use all supported attributed to produce group by reports
+    If(!$TeamsReportGroupByAttributes){
+        $TeamsReportGroupByAttributes = "Department","Domain","officeLocation"
+    }
+
     #Scheduled task settings
     $taskName = "M365UsageCollector"
     $taskActionArgument = "-File `"C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\$currentVersion\temp.ps1`""
@@ -315,10 +329,10 @@ Function New-M365UsageCollectorJob{
     $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
-    #Try to check if the shceduled task already exists
+    #Try to check if the scheduled task already exists
     try{        
         #If the task not exists yet
-        if(!(Get-ScheduledTask N365UsageCollector -ErrorAction Ignore)){
+        if(!(Get-ScheduledTask M365UsageCollector -ErrorAction Ignore)){
             #Try to register the task
             Register-ScheduledTask -TaskName $taskName -InputObject $task -ErrorAction Stop
             Write-Log -Status "Info" -Message "New task registered with name M365UsageCollector"
@@ -329,7 +343,7 @@ Function New-M365UsageCollectorJob{
         #If the task exists already
         else{
             #Try to remove the existing task
-            Unregister-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
             Write-Log -Status "Info" -Message "Removed the existing task."
             #Try to register the task
             Register-ScheduledTask -TaskName $taskName -InputObject $task  -ErrorAction Stop
