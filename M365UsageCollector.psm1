@@ -26,6 +26,7 @@ $currentVersion = "v0.0.8.beta1"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
+$skuMapPath = "$installDir\skumap.json"
 
 #Function to create a Write-Log file and register Write-Log entries
 Function Write-Log{
@@ -79,6 +80,17 @@ if(!(Test-Path $modulePath)){
     catch{
         Write-Warning "Error: $($_.Exception.Message)"
         Remove-Module M365UsageCollector -ErrorAction SilentlyContinue
+        Exit
+    }
+}
+
+if(!(Test-Path $skuMapPath)){
+    try{
+        $skuMapContent = Get-Content .\skumap.json -ErrorAction Stop
+        $skuMapContent | Set-Content -Path $skuMapPath -Force -ErrorAction Stop
+    }
+    catch{
+        Write-Warning "Error: $($_.Exception.Message)"
         Exit
     }
 }
@@ -302,7 +314,7 @@ Function Join-TemporaryFiles{
     #Remove temporary files
     $files | Remove-Item -Force -Confirm:$false
 }
-
+#Function to create the scheduled task
 Function New-M365UsageCollectorJob{
     param(
         [Parameter(Mandatory=$true)]$AppId,
@@ -362,7 +374,6 @@ Function New-M365UsageCollectorJob{
         Write-Log -Status "Error either to create or set the task: " -Message $_.Exception
     }
 }
-
 #Function to group teams report by a specific attribute such as department or domain
 Function Group-TeamsReportBy{
     Param(
@@ -433,7 +444,6 @@ Function Group-TeamsReportBy{
     #Return all objects appended in one array
     return $scoreReport
 }
-
 #Function to create an application registration in Azure AD to be used to connect to Graph API
 Function New-M365UsageCollectorAppRegistration {
         #Connects to Azure AD
@@ -610,7 +620,8 @@ Function Get-M365LicenseSkuReport{
 
         #Crates a new ps custom object to store 3 attributes as follows
         $objLicense = [PSCustomObject] @{
-            "Sku" = $sku.SkuPartNumber
+            "SkuName" = ConvertTo-SkuComercialName -SkuPartNumber $sku.SkuPartNumber
+            "SkuPartNumber" = $sku.SkuPartNumber
             "EnabledUnits" = $sku.PrepaidUnits.Enabled
             "ConsumedUnits" = $sku.ConsumedUnits            
         }
@@ -625,6 +636,21 @@ Function Get-M365LicenseSkuReport{
     else{
         return $licenseReport | Format-Table
     }
+}
+#Function to convert sku ids to sku commercial names
+Function ConvertTo-SkuComercialName{
+    Param(
+        $SkuPartNumber
+    )
+
+    #Get the commercial name from sku map file based on sku id from Azure AD
+    $skuCommercialName = (Get-Content $skuMapPath | ConvertFrom-Json) | Where-Object {$_.StringId -eq $SkuPartNumber}
+    #If sku commercial name not found in map file return Undefinied
+    if(!$skuCommercialName){
+        return "Undefined"
+    }
+    #Return the sku commercial name
+    return $skuCommercialName.ProductName
 }
 
 #Function to get teams usage report from Graph Reports API
