@@ -14,6 +14,7 @@ Pre-requisites
 - A local admin account with administrative privilegies and following GPOs:
     - Log on as a batch job (Start > Run > secpol.msc > Security Settings > Local Policies > User Rights Assignment > Log on as a batch job > check if user is in the list or is a member of a group in the list)
     - Network access: Do not allow storage of passwords and credentiais for network authentication (Start > Run > secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow storage of passwords and credentiais for network authentication > Disabled)
+    - If you already ran a previous version and gonna run a newer, it is expected that the module installation to created a new folder for the newer version in the module folder and also it will delete and create the scheduled task. As a last resort, if needed you can manually delete the scheduled task and run the step to create it again.
     
 Setup
 
@@ -77,7 +78,7 @@ M365UsageReport_Summary_dd-MM-yyyy_hh-mm-ss.csv - Teams usage score
 
 Known Issues:
 
- - Every time I close PowerShell when re-open, if I run Import-Module is says "no valid module file was found".
+ - Every time I close PowerShell then re-open, if I run Import-Module it says "no valid module file was found".
 
   It happens because it is not yet a module per se. Make sure you import the module using the entire psm1 file path as follows:
 
