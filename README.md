@@ -18,9 +18,11 @@ Pre-requisites
     
 Setup
 
-1. Download the last version of this module from releases page:
-2. Open Windows PowerShell using the option Run as Administrator
-3. Ajust the execution policy:
+1. Download the last version of this module from releases page.
+2. Extract the entire .zip file.
+3. Open Windows PowerShell using the option Run as Administrator.
+4. Access the extracted root folder.
+5. Ajust the execution policy:
 
     Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
     
