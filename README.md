@@ -92,6 +92,8 @@ Get-M365SkuLicenseReport -Export:$true
 
  - M365UsageReport_Detailed_dd-MM-yyyy_hh-mm-ss.csv - Per user Teams usage (user portion on UPN sanitized by default)
 
+ - M365UsageReport_Teams_Summary_ByDepartment__dd-MM-yyyy_hh-mm-ss.csv - By department Teams usage score
+
  - M365UsageReport_Teams_Summary_ByDomainName_dd-MM-yyyy_hh-mm-ss.csv - By domain Teams usage score
 
  - M365UsageReport_Teams_Summary_ByOfficeLocation_dd-MM-yyyy_hh-mm-ss.csv - By department Teams usage score
