@@ -1,6 +1,6 @@
 # TeamsUsageCollector
 
-This ps module is intended to create usage reports related to Microsoft 365 products.
+This ps module is intended to create usage reports related to Microsoft 365 products. Current version is focusing in Teams. New workloads could be added in the future.
 
 ## Pre-requisites
 
