@@ -57,32 +57,34 @@ New-M365UsageCollectorAppRegistration
 
 11. After permission consent, you'll be redirected to a blank page. It is fine, you can close it.
 
-12. Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
+## Data collection
 
-13. For smaller environments you can run directly in the current PowerShell session. The session can't be closed otherwise the report will be incompleted:
+1. Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
+
+For smaller environments you can run directly in the current PowerShell session. The session can't be closed otherwise the report will be incompleted. If you choose this option, go to step 5.
 ```
 Get-TeamsUsageReport -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -TeamsReportGroupByAttributes Department,Domain,officeLocation
 ```
 
-14. For larger customers, you can schedule a task using the following cmdlet:
+For larger customers, you can schedule a task using the following cmdlet:
 ```
 New-M365UsageCollectorJob -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -TeamsReportGroupByAttributes Department,Domain,officeLocation
 ```
 
-15. Use the attributes you'd like to use as group by attributes in the parameter TeamsReportGroupByAttributes. Consider that each attribute you use will result in a file with a scorecard of teams usage grouped by the given attribute therefore resulting in a longer running time. You can use any combination of the following attributes comma separated: Department ,Domain, and officeLocation.
+Use the attributes you'd like to use as group by attributes in the parameter TeamsReportGroupByAttributes. Consider that each attribute you use will result in a file with a scorecard of teams usage grouped by the given attribute therefore resulting in a longer running time. You can use any combination of the following attributes comma separated: Department ,Domain, and officeLocation.
 
-16. A credential will be asked. This one should be that one with local privilegies to run as a batch job.
+3. A credential will be asked. This one should be that one with local privilegies to run as a batch job.
 
-17. Go to the Task Scheduler and confirm that the task M365UsageCollector is up and runnning.
+4. Go to the Task Scheduler and confirm that the task M365UsageCollector is up and runnning.
 
-18. You can check task progress in the following path: C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5. A log per day will be created.
+5. You can check task progress using the log file in the following path: C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x. One log per day will be created.
 
-19. The SKU report does'nt run in the scheduled task. If you need it, you can run it and using the following cmdlet.
+6. The SKU report doesn't run in the scheduled task. If you need it, you can run it using the following cmdlet:
 ```
 Get-M365SkuLicenseReport -Export:$true
 ```
 
-20. All report files are created in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
+7. All report files are placed in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
 
  - C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x\
 
