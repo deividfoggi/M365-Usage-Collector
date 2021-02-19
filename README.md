@@ -18,19 +18,21 @@ This ps module is intended to create usage reports related to Microsoft 365 prod
     
 ## Setup
 
-- Download the last version of this module from releases page.
-- Extract the entire .zip file.
-- Open Windows PowerShell using the option Run as Administrator.
-- Access the extracted root folder.
-- Ajust the execution policy:
+1. Download the last version of this module from releases page.
+2. Extract the entire .zip file.
+3. Open Windows PowerShell using the option Run as Administrator.
+4. Access the extracted root folder.
+5. Ajust the execution policy:
 ```
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
-``` 
-- Rum the follwoing cmdlet to import the module:
+```
+
+6. Run the follwoing cmdlet to import the module:
 ```
 Import-Module .\M365UsageCollector.psm1
 ```
-- After all information messages, use the following cmdlet to confirm that all cmdlets have been imported:
+
+7. After all information messages, use the following cmdlet to confirm that all cmdlets have been imported:
 ```
     Get-Module M365UsageCollector
 
@@ -39,58 +41,58 @@ Import-Module .\M365UsageCollector.psm1
     Script     0.0        M365UsageCollector                  {Get-M365LicenseSkuReport, Get-TeamsUsageReport, New-M365UsageCollectorAppRegistration, New-M365UsageCollectorJob}
 ```
 
-- Run the following cmdlet to create the application registration in Azure and authenticate using Azure AD global admin credentials:
+8. Run the following cmdlet to create the application registration in Azure and authenticate using Azure AD global admin credentials:
 ```
 New-M365UsageCollectorAppRegistration
 ```
 
-- If everything worked fine, following information will be shown. Make sure you take a note of Application ID, Tenant ID and Client Secret. We gonna use them shortly.
+9. If everything worked fine, following information will be shown. Make sure you take a note of Application ID, Tenant ID and Client Secret. We gonna use them shortly.
 
       Application Teams Usage Collector created successfully in your tenant. Take a note of the following information. If you lost one of them, ask you tenant admin to get it for you in Azure AD. Also, copy the http link for admin permission consent.
             AppId: 78f8538a-aaaa-4c6f-9b92-05e0d228129a
             TenantId: cdcae3ff-aaaa-4732-9cf5-1e33db81acf1
             ClientSecret: LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I=
 
-- Open any browser and paste the http link shown int he previous step. Proceed with authentication and consent the listed permissions.
+10. Open any browser and paste the http link shown int he previous step. Proceed with authentication and consent the listed permissions.
 
-- After permission consent, you'll be redirected to a blank page. It is fine, you can close it.
+11. After permission consent, you'll be redirected to a blank page. It is fine, you can close it.
 
-- Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
+12. Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
 
-- For smaller environments you can run directly in the current PowerShell session. The session can't be closed otherwise the report will be incompleted:
-
+13. For smaller environments you can run directly in the current PowerShell session. The session can't be closed otherwise the report will be incompleted:
+```
 Get-TeamsUsageReport -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -TeamsReportGroupByAttributes Department,Domain,officeLocation
+```
 
-- For larger customers, you can schedule a task using the following cmdlet:
-
+14. For larger customers, you can schedule a task using the following cmdlet:
 ```
 New-M365UsageCollectorJob -AppId 78f8538a-aaaa-4c6f-9b92-05e0d228129a -TenantId cdcae3ff-aaaa-4732-9cf5-1e33db81acf1 -ClientSecret LySeJaaaaZCO7xcYFCXck+KodLxojoI7pHJbDUu4n+I= -TeamsReportGroupByAttributes Department,Domain,officeLocation
 ```
 
-- Use the attributes you'd like to use as group by attributes in the parameter TeamsReportGroupByAttributes. Consider that each attribute you use will result in a file with a scorecard of teams usage grouped by the given attribute therefore resulting in a longer running time. You can use any combination of the following attributes comma separated: Department ,Domain, and officeLocation.
+15. Use the attributes you'd like to use as group by attributes in the parameter TeamsReportGroupByAttributes. Consider that each attribute you use will result in a file with a scorecard of teams usage grouped by the given attribute therefore resulting in a longer running time. You can use any combination of the following attributes comma separated: Department ,Domain, and officeLocation.
 
-- A credential will be asked. This one should be that one with local privilegies to run as a batch job.
+16. A credential will be asked. This one should be that one with local privilegies to run as a batch job.
 
-- Go to the Task Scheduler and confirm that the task M365UsageCollector is up and runnning.
+17. Go to the Task Scheduler and confirm that the task M365UsageCollector is up and runnning.
 
-- You can check task progress in the following path: C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5. A log per day will be created.
+18. You can check task progress in the following path: C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\0.0.5. A log per day will be created.
 
-- The SKU report wasn't yet added to the scheduled task. You can run it and test using the following cmdlet.
+19. The SKU report does'nt run in the scheduled task. If you need it, you can run it and using the following cmdlet.
 ```
 Get-M365SkuLicenseReport -Export:$true
-```  
-All report files are created in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
 ```
-C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x\
 
-LicenseReport.csv - enabled/consumed SKU report
+20. All report files are created in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
 
-M365UsageReport_Detailed_dd-MM-yyyy_hh-mm-ss.csv - Per user Teams usage (user portion on UPN sanitized by default)
+ - C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x\
 
-M365UsageReport_Teams_Summary_ByDomainName_dd-MM-yyyy_hh-mm-ss.csv - By domain Teams usage score
+ - LicenseReport.csv - enabled/consumed SKU report
 
-M365UsageReport_Teams_Summary_ByOfficeLocation_dd-MM-yyyy_hh-mm-ss.csv - By department Teams usage score
-```
+ - M365UsageReport_Detailed_dd-MM-yyyy_hh-mm-ss.csv - Per user Teams usage (user portion on UPN sanitized by default)
+
+ - M365UsageReport_Teams_Summary_ByDomainName_dd-MM-yyyy_hh-mm-ss.csv - By domain Teams usage score
+
+ - M365UsageReport_Teams_Summary_ByOfficeLocation_dd-MM-yyyy_hh-mm-ss.csv - By department Teams usage score
 
 
 ## Known issues
