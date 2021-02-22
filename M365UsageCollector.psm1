@@ -73,9 +73,15 @@ if(!(Test-Path $installDir)){
 if(!(Test-Path $modulePath)){
     try{
         Write-Host -ForegroundColor Yellow "Installing M365 Usage Collector Module"
-        $moduleContent = Get-Content .\M365USageCollector.psm1 -ErrorAction Stop
-        $moduleContent | Set-Content -Path $modulePath -Force -ErrorAction Stop
-        Write-Log -Status "Info" -Message "Module successfully installed"
+        if(!(Test-Path .\M365UsageCollector.psm1)){
+            Write-Warning "M365UsageCollector.psm1 file not found. Make sure you are in the same directory where you downloaded the module."
+            Exit
+        }
+        else{
+            $moduleContent = Get-Content .\M365USageCollector.psm1 -ErrorAction Stop
+            $moduleContent | Set-Content -Path $modulePath -Force -ErrorAction Stop
+            Write-Log -Status "Info" -Message "Module successfully installed"
+        }
     }
     catch{
         Write-Warning "Error: $($_.Exception.Message)"
@@ -647,7 +653,7 @@ Function ConvertTo-SkuComercialName{
     $skuCommercialName = (Get-Content $skuMapPath | ConvertFrom-Json) | Where-Object {$_.StringId -eq $SkuPartNumber}
     #If sku commercial name not found in map file return Undefinied
     if(!$skuCommercialName){
-        return "Undefined"
+        return $SkuPartNumber
     }
     #Return the sku commercial name
     return $skuCommercialName.ProductName
