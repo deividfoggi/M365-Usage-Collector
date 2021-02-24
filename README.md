@@ -115,6 +115,4 @@ Get-M365SkuLicenseReport -Export:$true
     - Log on as a batch job (Start > Run > secpol.msc > Security Settings > Local Policies > User Rights Assignment > Log on as a batch job > check if user is in the list or is a member of a group in the list)
     - Network access: Do not allow storage of passwords and credentiais for network authentication (Start > Run > secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow storage of passwords and credentiais for network authentication > Disabled)
     
-   Also it may happen if the script can't create the task because it already exists. Just manually delete the task M365UsageCollector in the task scheduler and run New-M365UsageCollectorJob once again.
-
-
+    If you run the cmdlet New-M365UsageCollectorJob, it will delete an existing task will create a new one. But it may fail to do so, then if the issue persists confirm that the task has all the information correctly, by checking the action parameter and if it points to the correct path and also if the path exists.
