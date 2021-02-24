@@ -22,6 +22,9 @@
   This module allows you to either export to .csv files or have the information in the current PowerShell session to customize the output at your will.
 #>
 
+#Force tls 1.2 for the current session
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $currentVersion = "v0.0.8.beta1"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
@@ -344,7 +347,7 @@ Function New-M365UsageCollectorJob{
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
     $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
-    $tempJob = "Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     #Try to check if the scheduled task already exists
