@@ -25,7 +25,7 @@
 #Force tls 1.2 for the current session
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$currentVersion = "v0.0.8.beta1"
+$currentVersion = "v0.0.8.beta2"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
@@ -602,8 +602,6 @@ Function Send-GraphRequest{
     }
     catch{
         Write-Log -Status "Error" -Message $_
-        $errorDescription = $_ | ConvertFrom-Json
-        Write-Log -Status "Error" -Message $errorDescription
     }
 }
 
@@ -684,10 +682,7 @@ Function Get-TeamsUsageReport{
     
     #Uses EscapeDataString function to prevent an issue that replaces all + sign in the client secret string with a blank space
     $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
-
-    #Get an Azure AD token using app reg info
-    $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
-    
+   
     #Define summary report name by department
     $m365UsageReportSummaryNameByDepartment = "M365UsageReport_Teams_Summary_ByDepartment"
     #Detailed report path
@@ -704,6 +699,9 @@ Function Get-TeamsUsageReport{
     $m365UsageReportDetailedName = "M365UsageReport_Detailed"
     #Detailed report path
     $detailedReportPath = $installDir + "\$($m365UsageReportDetailedName)_$(Get-Date -Format 'dd-MM-yyyy_hh-mm-ss').csv"
+
+    #Get an Azure AD token using app reg info
+    $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
     
     Write-Log -Status "Info" -Message "Starting the request for reports: Teams User Activity Detail and Office 365 Active User Detail"
     #Send graph api requests against reports API to get teams reports considering a 30 days time span
@@ -728,7 +726,6 @@ Function Get-TeamsUsageReport{
     $parsedUserList = Import-Csv $detailedReportPath
 
     Function New-TeamsDepartmentScorecard{
-
         Write-Log -Status "Info" -Message "Start to extract unique deparments"
         #Extract unique department strings from users endpoint result
         $departments = ($users | Select-Object Department -Unique).department
@@ -738,6 +735,8 @@ Function Get-TeamsUsageReport{
     }
 
     Function New-TeamsDomainScoreCard{
+        #Get an Azure AD token using app reg info
+        $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
         Write-Log -Status "Info" -Message "Starting the request from all domains in Azure AD"
         $domains = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/domains"
         Write-Log -Status "Info" -Message "Start to extract unique domains"
