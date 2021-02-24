@@ -22,7 +22,7 @@ This ps module is intended to create usage reports related to Microsoft 365 prod
 2. Extract the entire .zip file.
 3. Open Windows PowerShell using the option Run as Administrator.
 4. Access the extracted root folder.
-5. Ajust the execution policy:
+5. Adjust the execution policy:
 ```
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
 ```
@@ -59,7 +59,7 @@ New-M365UsageCollectorAppRegistration
 
 ## Data collection
 
-1. Back to PowerShell Windows, use the following cmdlet with the information copied in step 8 to create a scheduled task that will run in the background to build the Teams Usage Score report:
+1. Back to PowerShell Windows, use the following cmdlet with the information copied in step 9 to create a scheduled task that will run in the background to build the Teams Usage Score report:
 
 For smaller environments you can run directly in the current PowerShell session. The session can't be closed otherwise the report will be incompleted. If you choose this option, go to step 5.
 ```
