@@ -608,41 +608,39 @@ Function Send-GraphRequest{
 #Function to get a license sku report using Azure AD module
 Function Get-M365LicenseSkuReport{
     Param(
-        [Parameter(Mandatory=$false)]$Export
+        [Parameter(Mandatory=$true)]$AppId,
+        [Parameter(Mandatory=$true)]$TenantId,
+        [Parameter(Mandatory=$true)]$ClientSecret
     )
 
-    $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)"
+    #Get an Azure AD token using app reg info
+    $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
 
-    #Connects to Azure AD
-    ConnectAzureAD
-
-    #Store all subscribed SKUs in a variable
-    $licensesRequest = Get-AzureADSubscribedSku | Select-Object SkuPartNumber,*Units
+    Write-Log -Status "Info" -Message "Starting the request for license sku details"
+    #Send graph api requests against reports API to get teams reports considering a 30 days time span
+    $tenantSkus = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/subscribedSkus"
 
     #Creates an empy array to build append custom ps objects
     $licenseReport = @()
 
     #For each subscribed SKU found
-    foreach($sku in $licensesRequest){
+    foreach($sku in $tenantSkus){
 
         #Crates a new ps custom object to store 3 attributes as follows
         $objLicense = [PSCustomObject] @{
             "SkuName" = ConvertTo-SkuComercialName -SkuPartNumber $sku.SkuPartNumber
             "SkuPartNumber" = $sku.SkuPartNumber
+            "AppliesTo" = $sku.appliesTo
             "EnabledUnits" = $sku.PrepaidUnits.Enabled
-            "ConsumedUnits" = $sku.ConsumedUnits            
+            "ConsumedUnits" = $sku.ConsumedUnits
+            "ServicePlans" = $sku.servicePlans
         }
+
         #Append current object in the array
         $licenseReport += $objLicense
     }
-    #If Export parameter selected by user then exports the array into a csv file
-    if($Export -eq $true){
-        $licenseReport | Export-Csv "$installDir\LicenseReport.csv" -NoTypeInformation
-    }
-    #If no Export parameter then print out in the screen
-    else{
-        return $licenseReport | Format-Table
-    }
+    #Exports the array into a csv file
+    $licenseReport | Select-Object SkuName, SkuPartNumber, EnabledUnits, ConsumedUnits, AppliesTo, @{Label="ServicePlans";Expression={$_.ServicePlans -split ";"}} | Export-Csv "$installDir\LicenseReport.csv" -NoTypeInformation
 }
 #Function to convert sku ids to sku commercial names
 Function ConvertTo-SkuComercialName{
@@ -845,7 +843,9 @@ Function Get-TeamsUsageReport{
         }
     }
     #>
-
+    
+    #Export sku usage scorecard
+    Get-M365LicenseSkuReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret
 
     #Stop the watch and register the time spent to export teams usage report
     $stopWatchStop = Get-Date
@@ -855,7 +855,6 @@ Function Get-TeamsUsageReport{
 }
 
 #Exposes the following functions as module cmdlets
-Export-ModuleMember -Function Get-M365LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
 Export-ModuleMember -Function New-M365UsageCollectorAppRegistration
 Export-ModuleMember -Function New-M365UsageCollectorJob
