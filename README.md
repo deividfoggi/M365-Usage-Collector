@@ -1,3 +1,5 @@
+[![Board Status](https://dev.azure.com/dfoggi/7efa0583-4fd8-43cd-a1a0-be7d34b87975/e67f131d-eed2-42b0-9a27-1d63add15eba/_apis/work/boardbadge/a8082285-e8c0-4fc1-8d82-24f1f26b0c3e)](https://dev.azure.com/dfoggi/7efa0583-4fd8-43cd-a1a0-be7d34b87975/_boards/board/t/e67f131d-eed2-42b0-9a27-1d63add15eba/Microsoft.RequirementCategory/)
+
 # TeamsUsageCollector
 
 This ps module is intended to create usage reports related to Microsoft 365 products. Current version is focusing in Teams. New workloads could be added in the future.
