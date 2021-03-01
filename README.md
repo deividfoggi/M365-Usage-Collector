@@ -81,12 +81,7 @@ Use the attributes you'd like to use as group by attributes in the parameter Tea
 
 5. You can check task progress using the log file in the following path: C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x. One log per day will be created.
 
-6. The SKU report doesn't run in the scheduled task. If you need it, you can run it using the following cmdlet:
-```
-Get-M365SkuLicenseReport -Export:$true
-```
-
-7. All report files are placed in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
+6. All report files are placed in the following path with .csv extension. After all tasks finished, 3 reports are expected (you can have more if a task runs more than once):
 
  - C:\Program Files\WindowsPowerShell\Modules\M365-Usage-Collector\vx.x.x\
 
