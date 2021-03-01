@@ -409,16 +409,6 @@ Function Group-TeamsReportBy{
     $usersPerAttrWithTeamsMAU = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""}
     #Group users with teams MAU considering only those with attribute filed + last activity date newer than the date of TimeSpan variable which is the report period (possible report periods: D30, D60, D90, D180)
     $usersPerAttrWithTeamsMAU = $usersPerAttrWithTeamsMAU | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -gt $teamsMauStartDate} | Group-Object $GroupByAttribute
-    <#
-    #Group users without teams MAU first collecting those with empty attribute
-    $usersPerAttrWithoutTeamsMAU = $TeamsUsersList | Where-Object{$null -eq $_.TeamsLastActivityDate -or $_.TeamsLastActivityDate -eq ""}
-    #Group users without teams MAU now collecting those without empty attribute but last activity date older than the date of TimeSpan variable which is the report period
-    $usersPerAttrWithoutTeamsMAUOlder = $TeamsUsersList | Where-Object{$null -ne $_.TeamsLastActivityDate -and "" -ne $_.TeamsLastActivityDate}
-    #Group users without teams MAU now collecting those without empty attribute + last activity date older than the date of TimeSpan variable which is the report period
-    $usersPerAttrWithoutTeamsMAUOlder = $usersPerAttrWithoutTeamsMAUOlder | Where-Object{[datetime]::ParseExact($_.TeamsLastActivityDate,'yyyy-MM-dd', $null) -lt $teamsMauStartDate} | Group-Object $GroupByAttribute
-    #Summing upp both variables of users without Teams MAU
-    $usersPerAttrWithoutTeamsMAU += $usersPerAttrWithoutTeamsMAUOlder
-    #>
     #Group users with teams meetings MAU
     $usersPerAttrWithTeamsMeetingMAU = $TeamsUsersList | Where-Object{$_.MeetingCount -gt 0} | Group-Object $GroupByAttribute
 
@@ -608,41 +598,39 @@ Function Send-GraphRequest{
 #Function to get a license sku report using Azure AD module
 Function Get-M365LicenseSkuReport{
     Param(
-        [Parameter(Mandatory=$false)]$Export
+        [Parameter(Mandatory=$true)]$AppId,
+        [Parameter(Mandatory=$true)]$TenantId,
+        [Parameter(Mandatory=$true)]$ClientSecret
     )
 
-    $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)"
+    #Get an Azure AD token using app reg info
+    $accessToken = (Get-AzureADToken -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret).access_token
 
-    #Connects to Azure AD
-    ConnectAzureAD
-
-    #Store all subscribed SKUs in a variable
-    $licensesRequest = Get-AzureADSubscribedSku | Select-Object SkuPartNumber,*Units
+    Write-Log -Status "Info" -Message "Starting the request for license sku details"
+    #Send graph api requests against reports API to get teams reports considering a 30 days time span
+    $tenantSkus = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/subscribedSkus"
 
     #Creates an empy array to build append custom ps objects
     $licenseReport = @()
 
     #For each subscribed SKU found
-    foreach($sku in $licensesRequest){
+    foreach($sku in $tenantSkus){
 
         #Crates a new ps custom object to store 3 attributes as follows
         $objLicense = [PSCustomObject] @{
             "SkuName" = ConvertTo-SkuComercialName -SkuPartNumber $sku.SkuPartNumber
             "SkuPartNumber" = $sku.SkuPartNumber
+            "AppliesTo" = $sku.appliesTo
             "EnabledUnits" = $sku.PrepaidUnits.Enabled
-            "ConsumedUnits" = $sku.ConsumedUnits            
+            "ConsumedUnits" = $sku.ConsumedUnits
+            "ServicePlans" = $sku.servicePlans
         }
+
         #Append current object in the array
         $licenseReport += $objLicense
     }
-    #If Export parameter selected by user then exports the array into a csv file
-    if($Export -eq $true){
-        $licenseReport | Export-Csv "$installDir\LicenseReport.csv" -NoTypeInformation
-    }
-    #If no Export parameter then print out in the screen
-    else{
-        return $licenseReport | Format-Table
-    }
+    #Exports the array into a csv file
+    $licenseReport | Select-Object SkuName, SkuPartNumber, EnabledUnits, ConsumedUnits, AppliesTo, @{Label="ServicePlans";Expression={$_.ServicePlans -split ";"}} | Export-Csv "$installDir\LicenseReport.csv" -NoTypeInformation
 }
 #Function to convert sku ids to sku commercial names
 Function ConvertTo-SkuComercialName{
@@ -784,68 +772,9 @@ Function Get-TeamsUsageReport{
             }
         }
     }
-
-    <#
-
-    #Group by department users who has teams license
-    $usersPerDepartmentWithTeams = $parsedUserList | Where-Object{$_.HasTeamsLicense -eq "TRUE"} | Group-Object Department
-    #Group by department users who has no teams license
-    $usersPerDepartmentWithoutTeams = $parsedUserList | Where-Object{$_.HasTeamsLicense -ne "TRUE"} | Group-Object Department
-    #Group by department users who has activity last date
-    $usersPerDepartmentWithActivity = $parsedUserList | Where-Object{$null -ne $_.TeamsLastActivityDate -and $_.TeamsLastActivityDate -ne ""} | Group-Object Department
-    #Group by department users who has no activity last date
-    $usersPerDepartmentWithoutActivity = $parsedUserList | Where-Object{$null -eq $_.TeamsLastActivityDate-or $_.TeamsLastActivityDate -eq ""} | Group-Object Department
-    #Group by department users who has teams meeting count greater than 0
-    $usersPerDepartmentWithMeeting = $parsedUserList | Where-Object{$_.MeetingCount -gt 0} | Group-Object Department
-
-    Write-Log -Status "Info" -Message "Finished to group objects"
-    Write-Log -Status "Info" -Message "Start to build teams usage score"
-
-    #Creates an array to append ps custom objects
-    $screenReportByDepartment = @()
-
-    #For each unique department found in users end point api, uses the grouped objects above to build up a teams usage score
-    foreach($department in $departments){
-        #Due to comparisons need, if department is blank set it as $null
-        if(!$department){
-            $department = $null
-        }
-
-        #Creates a ps custom object for the current department and count it down each scenario to build the department score
-        $obj = [PSCustomObject]@{
-            Department = $department
-            UserCount = ($users|Where-Object{$_.department -eq $department}|Measure-Object).Count
-            HasTeamsLicense = ($usersPerDepartmentWithTeams.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
-            HasNoTeamsLicense = ($usersPerDepartmentWithoutTeams.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
-            HasTeamsActivity = ($usersPerDepartmentWithActivity.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
-            HasNoTeamsActivity = ($usersPerDepartmentWithoutActivity.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
-            HasMeeting = ($usersPerDepartmentWithMeeting.group|Where-Object{$_.department -eq $department}|Measure-Object).Count
-
-        }
-        #Append the current ps custom object into the array
-        $screenReportByDepartment += $obj
-    }
-
-    Write-Log -Status "Info" -Message "Finished the build of teams usage score"
-    Write-Log -Status "Info" -Message "Report finished using Report Mode: $($ReportMode)"
-
-    #Uses the ReportMode parameter input to define the output action
-    switch($ReportMode){
-        #Exports both summary and detailed scorecard
-        "Export"{
-            $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
-            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
-            $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
-        }
-        #Exports both summary and per user detail scorecard
-        "AsJob"{
-            $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
-            $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
-            $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
-        }
-    }
-    #>
-
+    
+    #Export sku usage scorecard
+    Get-M365LicenseSkuReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret
 
     #Stop the watch and register the time spent to export teams usage report
     $stopWatchStop = Get-Date
@@ -855,7 +784,6 @@ Function Get-TeamsUsageReport{
 }
 
 #Exposes the following functions as module cmdlets
-Export-ModuleMember -Function Get-M365LicenseSkuReport
 Export-ModuleMember -Function Get-TeamsUsageReport
 Export-ModuleMember -Function New-M365UsageCollectorAppRegistration
 Export-ModuleMember -Function New-M365UsageCollectorJob
