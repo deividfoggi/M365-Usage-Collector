@@ -12,7 +12,7 @@ This ps module is intended to create usage reports related to Microsoft 365 prod
                 - User.Read.All
                 - Directory.Read.All
 
-- For big environments, a always-on server/machine.
+- For big environments, an always-on server/machine.
 - A local admin account with administrative privilegies and following GPOs:
     - Log on as a batch job (Start > Run > secpol.msc > Security Settings > Local Policies > User Rights Assignment > Log on as a batch job > check if user is in the list or is a member of a group in the list)
     - Network access: Do not allow storage of passwords and credentiais for network authentication (Start > Run > secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow storage of passwords and credentiais for network authentication > Disabled)
