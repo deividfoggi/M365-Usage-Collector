@@ -7,7 +7,7 @@ jobs:
   alert:
     runs-on: M365 Usage Assessment
     steps:
-      - uses: danhellem/github-actions-issue-to-work-item@master
+      - uses: deividfoggi/M365-Usage-Collector@main
         env:
           ado_token: "${{ secrets.ADO_PERSONAL_ACCESS_TOKEN }}"
           github_token: "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
