@@ -7,7 +7,7 @@ jobs:
   alert:
     runs-on: ubuntu-latest
     steps:
-      - uses: dfoggi/M365-Usage-Collector@master
+      - uses: deividfoggi/M365-Usage-Collector@master
         env:
           ado_token: "${{ secrets.ADO_PERSONAL_ACCESS_TOKEN }}"
           github_token: "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
