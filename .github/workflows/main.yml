@@ -5,7 +5,7 @@
 
 jobs:
   alert:
-    runs-on: M365 Usage Assessment
+    runs-on: M365-Usage-Assessment
     steps:
       - uses: danhellem/github-actions-issue-to-work-item@master
         env:
