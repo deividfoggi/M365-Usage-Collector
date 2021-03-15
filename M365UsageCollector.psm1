@@ -713,7 +713,7 @@ Function Get-TeamsUsageReport{
 
     Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
     #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
-    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
+    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,displayName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
 
     #Beta function - multi-thread
