@@ -204,6 +204,7 @@ Function New-M365UsageParseJob{
             Users = $users
             TeamsUserActivityUserDetail = $teamsUserActivityUserDetail
             Office365ActiveUserDetail = $office365ActiveUserDetail
+            UPNSanitization = $UpnSanitization
         }
         Write-Log -Status "Info" -Message "Creating runspace $($i) of $($usersChunks.length)"
         #Create the powershell runspace
@@ -212,7 +213,7 @@ Function New-M365UsageParseJob{
         $PowerShell.RunspacePool = $RunspacePool
         #Define the script block of the current runs space using the current users chunk
         $PowerShell.AddScript({
-            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail)
+            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail,$UpnSanitization)
             #Empty array to append all users objects
             $parsedUserList = @()
             #For each user in array users
