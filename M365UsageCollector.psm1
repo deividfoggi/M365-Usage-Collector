@@ -179,7 +179,8 @@ Function New-M365UsageParseJob{
     Param(
         [array]$UserList,
         [array]$TeamsUserActivityUserDetail,
-        [array]$Office365ActiveUserDetail
+        [array]$Office365ActiveUserDetail,
+        [boolean]$UpnSanitization
     )
 
     Write-Log -Status "Info" -Message "Creating a runspace pool with 10 threads limit"
@@ -220,11 +221,21 @@ Function New-M365UsageParseJob{
                 $userteamsUserActivityUserDetail = $TeamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
                 #Extract from the teams active user detail report the current user findings
                 $office365ActiveUserDetailUser = $Office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
+                #If UPNSanitization is $false, do not sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
+                if($UpnSanitization -eq $false){
+                    $UserPrincipalName = $user.UserPrincipalName
+                    $DisplayName = $user.DisplayName
+                }    
+                else{
+                    $UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
+                    $DisplayName = "Sanitized"
+                }
                 #Create a ps custom object to store current user findings
                 $userObj = [PSCustomObject] @{
-                    #Sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
-                    UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
                     #Fill the following attributes accordingly
+                    UserPrincipalName = $UserPrincipalName
+                    DisplayName = $DisplayName
+                    DomainName = $user.UserPrincipalName.Split("@")[1]
                     Department = $user.Department
                     OfficeLocation = $user.officeLocation
                     IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
@@ -652,16 +663,17 @@ Function ConvertTo-SkuComercialName{
 Function Get-TeamsUsageReport{
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true)]$AppId,
-        [Parameter(Mandatory=$true)]$TenantId,
-        [Parameter(Mandatory=$true)]$ClientSecret,
+        [Parameter(Mandatory=$true)][string]$AppId,
+        [Parameter(Mandatory=$true)][string]$TenantId,
+        [Parameter(Mandatory=$true)][string]$ClientSecret,
         #[Parameter(Mandatory=$true)]$ReportMode,
         [Parameter(Mandatory=$true)]
         [ValidateSet("Department","Domain","officeLocation")]
         [array]$TeamsReportGroupByAttributes,
         [Parameter(Mandatory=$false)]
         [ValidateSet("D7","D30","D90","D180")]
-        $TimeSpan = "D30"
+        [string]$TimeSpan = "D30",
+        [boolean]$UpnSanitization = $true
     )
 
     #Register in a variable the start datetime for statistics purposes
