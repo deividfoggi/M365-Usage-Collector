@@ -686,6 +686,11 @@ Function Get-TeamsUsageReport{
     #Register in a variable the start datetime for statistics purposes
     $stopWatchStart = Get-Date
     Write-Log -Status "Info" -Message "Teams Usage Report execution started at $($stopWatchStart)"
+
+    #Register if user data will be written down to disk
+    if($UserData){
+        Write-Log -Status "Info" -Message "UserData switch used. UserPrincipalName and DisplayName will be written down to disk inside detailed report. Take appropriately care of this data because it is higly sensitive."
+    }
     
     #Uses EscapeDataString function to prevent an issue that replaces all + sign in the client secret string with a blank space
     $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
