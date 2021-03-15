@@ -179,7 +179,8 @@ Function New-M365UsageParseJob{
     Param(
         [array]$UserList,
         [array]$TeamsUserActivityUserDetail,
-        [array]$Office365ActiveUserDetail
+        [array]$Office365ActiveUserDetail,
+        [switch]$UserData = $false
     )
 
     Write-Log -Status "Info" -Message "Creating a runspace pool with 10 threads limit"
@@ -203,6 +204,7 @@ Function New-M365UsageParseJob{
             Users = $users
             TeamsUserActivityUserDetail = $teamsUserActivityUserDetail
             Office365ActiveUserDetail = $office365ActiveUserDetail
+            UserData = $UserData
         }
         Write-Log -Status "Info" -Message "Creating runspace $($i) of $($usersChunks.length)"
         #Create the powershell runspace
@@ -211,7 +213,7 @@ Function New-M365UsageParseJob{
         $PowerShell.RunspacePool = $RunspacePool
         #Define the script block of the current runs space using the current users chunk
         $PowerShell.AddScript({
-            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail)
+            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail,$UserData)
             #Empty array to append all users objects
             $parsedUserList = @()
             #For each user in array users
@@ -220,11 +222,21 @@ Function New-M365UsageParseJob{
                 $userteamsUserActivityUserDetail = $TeamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
                 #Extract from the teams active user detail report the current user findings
                 $office365ActiveUserDetailUser = $Office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
+                #If UserData is $false, do not sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
+                if($UserData -eq $true){
+                    $UserPrincipalName = $user.UserPrincipalName
+                    $DisplayName = $user.DisplayName
+                }    
+                else{
+                    $UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
+                    $DisplayName = "Sanitized"
+                }
                 #Create a ps custom object to store current user findings
                 $userObj = [PSCustomObject] @{
-                    #Sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
-                    UserPrincipalName = $user.UserPrincipalName.Split("@")[1]
                     #Fill the following attributes accordingly
+                    UserPrincipalName = $UserPrincipalName
+                    DisplayName = $DisplayName
+                    DomainName = $user.UserPrincipalName.Split("@")[1]
                     Department = $user.Department
                     OfficeLocation = $user.officeLocation
                     IsDeleted = $office365ActiveUserDetailUser.'Is Deleted'
@@ -330,7 +342,8 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         #[Parameter(Mandatory=$true)]$ReportMode
-        [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes
+        [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes,
+        [switch]$UserData = $false
     )
 
     #If user doesn't input any group by attribute use all supported attributed to produce group by reports
@@ -347,7 +360,12 @@ Function New-M365UsageCollectorJob{
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
     $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
-    $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    if($UserData){
+        $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",") -UserData;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    }else{
+        $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    }
+    
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     #Try to check if the scheduled task already exists
@@ -652,21 +670,27 @@ Function ConvertTo-SkuComercialName{
 Function Get-TeamsUsageReport{
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory=$true)]$AppId,
-        [Parameter(Mandatory=$true)]$TenantId,
-        [Parameter(Mandatory=$true)]$ClientSecret,
+        [Parameter(Mandatory=$true)][string]$AppId,
+        [Parameter(Mandatory=$true)][string]$TenantId,
+        [Parameter(Mandatory=$true)][string]$ClientSecret,
         #[Parameter(Mandatory=$true)]$ReportMode,
         [Parameter(Mandatory=$true)]
         [ValidateSet("Department","Domain","officeLocation")]
         [array]$TeamsReportGroupByAttributes,
         [Parameter(Mandatory=$false)]
         [ValidateSet("D7","D30","D90","D180")]
-        $TimeSpan = "D30"
+        [string]$TimeSpan = "D30",
+        [switch]$UserData = $false
     )
 
     #Register in a variable the start datetime for statistics purposes
     $stopWatchStart = Get-Date
     Write-Log -Status "Info" -Message "Teams Usage Report execution started at $($stopWatchStart)"
+
+    #Register if user data will be written down to disk
+    if($UserData){
+        Write-Log -Status "Info" -Message "UserData switch used. UserPrincipalName and DisplayName will be written down to disk inside detailed report. Take appropriately care of this data because it is higly sensitive."
+    }
     
     #Uses EscapeDataString function to prevent an issue that replaces all + sign in the client secret string with a blank space
     $ClientSecret = [System.Uri]::EscapeDataString($ClientSecret)
@@ -700,12 +724,17 @@ Function Get-TeamsUsageReport{
 
     Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
     #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
-    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
+    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,displayName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
 
     #Beta function - multi-thread
     Write-Log -Status "Info" -Message "Start to parse all reportings into one"
-    New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
+    if($UserData){
+        New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail -UserData
+    }else{
+        New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail
+    }
+    
     #Run the function to join all temporary files generated by the multi-thread function New-M365UsageParseJob into the final report
     Join-TemporaryFiles -ReportPath $detailedReportPath
     Write-Log -Status "Info" -Message "Finished the user report parsing"

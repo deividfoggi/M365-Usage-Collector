@@ -2,3 +2,4 @@ debug.ps1
 *.csv
 /.vscode/*
 *.pbix
+build.ps1
