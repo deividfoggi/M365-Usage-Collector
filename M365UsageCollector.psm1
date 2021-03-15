@@ -180,7 +180,7 @@ Function New-M365UsageParseJob{
         [array]$UserList,
         [array]$TeamsUserActivityUserDetail,
         [array]$Office365ActiveUserDetail,
-        [boolean]$UpnSanitization
+        [switch]$UserData = $false
     )
 
     Write-Log -Status "Info" -Message "Creating a runspace pool with 10 threads limit"
@@ -204,7 +204,7 @@ Function New-M365UsageParseJob{
             Users = $users
             TeamsUserActivityUserDetail = $teamsUserActivityUserDetail
             Office365ActiveUserDetail = $office365ActiveUserDetail
-            UPNSanitization = $UpnSanitization
+            UserData = $UserData
         }
         Write-Log -Status "Info" -Message "Creating runspace $($i) of $($usersChunks.length)"
         #Create the powershell runspace
@@ -213,7 +213,7 @@ Function New-M365UsageParseJob{
         $PowerShell.RunspacePool = $RunspacePool
         #Define the script block of the current runs space using the current users chunk
         $PowerShell.AddScript({
-            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail,$UpnSanitization)
+            param ($FileName,$Users,$TeamsUserActivityUserDetail,$Office365ActiveUserDetail,$UserData)
             #Empty array to append all users objects
             $parsedUserList = @()
             #For each user in array users
@@ -222,8 +222,8 @@ Function New-M365UsageParseJob{
                 $userteamsUserActivityUserDetail = $TeamsUserActivityUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
                 #Extract from the teams active user detail report the current user findings
                 $office365ActiveUserDetailUser = $Office365ActiveUserDetail | Where-Object{$_.'User Principal Name' -eq $user.UserPrincipalName}
-                #If UPNSanitization is $false, do not sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
-                if($UpnSanitization -eq $false){
+                #If UserData is $false, do not sanitize UserPrincipalName (keep domain only which can be used later in group by report) and DisplayName to remove PII
+                if($UserData -eq $true){
                     $UserPrincipalName = $user.UserPrincipalName
                     $DisplayName = $user.DisplayName
                 }    
@@ -342,7 +342,8 @@ Function New-M365UsageCollectorJob{
         [Parameter(Mandatory=$true)]$TenantId,
         [Parameter(Mandatory=$true)]$ClientSecret,
         #[Parameter(Mandatory=$true)]$ReportMode
-        [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes
+        [Parameter(Mandatory=$false)][array]$TeamsReportGroupByAttributes,
+        [switch]$UserData = $false
     )
 
     #If user doesn't input any group by attribute use all supported attributed to produce group by reports
@@ -359,7 +360,7 @@ Function New-M365UsageCollectorJob{
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $taskCredentials.UserName -LogonType ServiceAccount -RunLevel Highest
     $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Days 7)
     $task = New-ScheduledTask -Action $taskAction -Principal $taskPrincipal -Settings $taskSettings -Description $taskDescription
-    $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",");Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
+    $tempJob = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;Import-Module '$modulePath';Get-TeamsUsageReport -AppId $AppId -TenantId $TenantId -ClientSecret $ClientSecret -TeamsReportGroupByAttributes $($TeamsReportGroupByAttributes -join ",") -UserData $UserData;Remove-Item '$installDir\temp.ps1' -Confirm:`$false"
     $tempJob | Set-Content "$installDir\temp.ps1" -Force
 
     #Try to check if the scheduled task already exists
@@ -674,7 +675,7 @@ Function Get-TeamsUsageReport{
         [Parameter(Mandatory=$false)]
         [ValidateSet("D7","D30","D90","D180")]
         [string]$TimeSpan = "D30",
-        [boolean]$UpnSanitization = $true
+        [switch]$UserData = $false
     )
 
     #Register in a variable the start datetime for statistics purposes
@@ -718,7 +719,7 @@ Function Get-TeamsUsageReport{
 
     #Beta function - multi-thread
     Write-Log -Status "Info" -Message "Start to parse all reportings into one"
-    New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail -UpnSanitization $UpnSanitization
+    New-M365UsageParseJob -UserList $users -teamsUserActivityUserDetail $teamsUserActivityUserDetail -office365ActiveUserDetail $office365ActiveUserDetail -UserData $UserData
     #Run the function to join all temporary files generated by the multi-thread function New-M365UsageParseJob into the final report
     Join-TemporaryFiles -ReportPath $detailedReportPath
     Write-Log -Status "Info" -Message "Finished the user report parsing"
