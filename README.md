@@ -17,7 +17,16 @@ This ps module is intended to create usage reports related to Microsoft 365 prod
     - Log on as a batch job (Start > Run > secpol.msc > Security Settings > Local Policies > User Rights Assignment > Log on as a batch job > check if user is in the list or is a member of a group in the list)
     - Network access: Do not allow storage of passwords and credentiais for network authentication (Start > Run > secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow storage of passwords and credentiais for network authentication > Disabled)
     - If you already ran a previous version and gonna run a newer, it is expected that the module installation to created a new folder for the newer version in the module folder and also it will delete and create the scheduled task. As a last resort, if needed you can manually delete the scheduled task and run the step to create it again.
-    
+  
+## Parameters
+
+AppId - Azure AD Application registration identifier.
+TenantId - Azure AD/Office 365 tenant identifier.
+ClientSecret - Azure AD Application client secret
+TeamsReportGroupByAttributes - List of attributes comma separated that will be used to create a group by version of the report. One .csv file will be created per attribute therefore giving you a scorecard per attribute. It supports department, officeLocation and domain. The first and the second is from users endpoint and are extracted as unique values from users list acquired from /users endpoint. The domain is from /domains endpoint.
+TimeSpan - Used to define how many days in the past will be used to build the report. Default value is D30 which is 30 days and the acceptable values by the reports API are D7, D30, D90 and D180. Currently you can't pass this parameter through a scheduled job, schedule tasks will always consider D30. However, you can use it when running the script synchronously by using Get-TeamsUsageReport cmdlet.
+UserData - This switch allows the script to write down to the report file attributes UserPrincipalName and DisplayName. By default, this switch is not used therefore the PII data is sanitized from report files.
+
 ## Setup
 
 1. Download the last version of this module from releases page.
