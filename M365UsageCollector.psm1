@@ -760,7 +760,7 @@ Function Get-TeamsUsageReport{
         #Extract unique domains strings from domains endpoint result
         $domains = ($domains | Select-Object id -Unique).id
         Write-Log -Status "Info" -Message "Finish to extract unique domains"
-        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
+        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "DomainName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
         return $screenReportByDomain
     }
 
@@ -777,7 +777,7 @@ Function Get-TeamsUsageReport{
 
     if(!$TeamsReportGroupByAttributes){
         $screenReportByDepartment = New-TeamsDepartmentScorecard
-        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "UserPrincipalName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
+        $screenReportByDomain = Group-TeamsReportBy -GroupByAttribute "DomainName" -TeamsUsersList $parsedUserList -UniqueGroupByAttributeList $domains -TimeSpan $TimeSpan
         $screenReportByDepartment | Export-Csv $summaryReportPathByDepartment -NoTypeInformation -Encoding UTF8
         $screenReportByDomain | Export-Csv $summaryReportPathByDomainName -NoTypeInformation -Encoding UTF8
         $screenReportByOfficeLocation | Export-Csv $summaryReportPathByofficeLocation -NoTypeInformation -Encoding UTF8
