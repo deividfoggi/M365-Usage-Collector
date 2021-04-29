@@ -25,7 +25,7 @@
 #Force tls 1.2 for the current session
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$currentVersion = "v0.0.8.beta4"
+$currentVersion = "v0.0.8.beta5"
 #Creates an installation directory 
 $installDir = "$env:ProgramFiles\WindowsPowerShell\Modules\M365-Usage-Collector\$($currentVersion)" #If changed, don't forget to updated it in the task schedule creation variable taskAction. Due to quotes, we can't use the install path variable there.
 $modulePath = "$installDir\M365UsageCollector.psm1"
