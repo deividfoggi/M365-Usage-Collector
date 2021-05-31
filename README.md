@@ -20,12 +20,17 @@ This ps module is intended to create usage reports related to Microsoft 365 prod
   
 ## Parameters
 
-AppId - Azure AD Application registration identifier.
-TenantId - Azure AD/Office 365 tenant identifier.
-ClientSecret - Azure AD Application client secret
-TeamsReportGroupByAttributes - List of attributes comma separated that will be used to create a group by version of the report. One .csv file will be created per attribute therefore giving you a scorecard per attribute. It supports department, officeLocation and domain. The first and the second is from users endpoint and are extracted as unique values from users list acquired from /users endpoint. The domain is from /domains endpoint.
-TimeSpan - Used to define how many days in the past will be used to build the report. Default value is D30 which is 30 days and the acceptable values by the reports API are D7, D30, D90 and D180. Currently you can't pass this parameter through a scheduled job, schedule tasks will always consider D30. However, you can use it when running the script synchronously by using Get-TeamsUsageReport cmdlet.
-UserData - This switch allows the script to write down to the report file attributes UserPrincipalName and DisplayName. By default, this switch is not used therefore the PII data is sanitized from report files.
+**AppId** - Azure AD Application registration identifier.
+
+**TenantId** - Azure AD/Office 365 tenant identifier.
+
+**ClientSecret** - Azure AD Application client secret.
+
+**TeamsReportGroupByAttributes** - List of attributes comma separated that will be used to create a group by version of the report. One .csv file will be created per attribute therefore giving you a scorecard per attribute. It supports department, officeLocation and domain. The first and the second is from users endpoint and are extracted as unique values from users list acquired from /users endpoint. The domain is from /domains endpoint.
+
+**TimeSpan** - Used to define how many days in the past will be used to build the report. Default value is D30 which is 30 days and the acceptable values by the reports API are D7, D30, D90 and D180. Currently you can't pass this parameter through a scheduled job, schedule tasks will always consider D30. However, you can use it when running the script synchronously by using Get-TeamsUsageReport cmdlet.
+
+**UserData** - This switch allows the script to write down to the report file attributes UserPrincipalName and DisplayName. By default, this switch is not used therefore the PII data is sanitized from report files.
 
 ## Setup
 
