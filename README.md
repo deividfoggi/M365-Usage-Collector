@@ -2,7 +2,9 @@
 
 # TeamsUsageCollector
 
-This ps module is intended to create usage reports related to Microsoft 365 products. Current version is focusing in Teams. New workloads could be added in the future.
+This ps module is intended to create usage reports related to Microsoft 365 products. Current version is focusing in Teams. New workloads could be added in the future. If you just need a usage activity report per user, consider to download the following report form M365 Admin Center: https://docs.microsoft.com/en-us/microsoft-365/admin/activity-reports/microsoft-teams-user-activity-preview?view=o365-worldwide
+
+**Warning!** This script will be useful if you need insights considering department, office location and domain name (from upn).
 
 ## Pre-requisites
 
