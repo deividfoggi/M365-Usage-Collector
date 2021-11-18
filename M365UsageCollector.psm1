@@ -292,6 +292,10 @@ Function Split-Array{
         if($i -eq ($numberOfJobs + 1)){
             #The variable of the first object in the current chunk becomes the rest/mod all chunks divided the chunk size
             $varFirst = $lastJobCount
+            #If the array length is less than object limit, then the number of objects should be equal to array length
+            if($Array.length -lt $ObjectLimit){
+                $numberOfObj = $Array.length
+            }
             #The variable of the number of objects to skip becomes the number of objects multipled by current interaction value minus 1
             $varSkip = $numberOfObj * ($i - 1)
         }else{
