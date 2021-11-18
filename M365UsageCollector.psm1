@@ -292,6 +292,10 @@ Function Split-Array{
         if($i -eq ($numberOfJobs + 1)){
             #The variable of the first object in the current chunk becomes the rest/mod all chunks divided the chunk size
             $varFirst = $lastJobCount
+            #If the array length is less than object limit, then the number of objects should be equal to array length
+            if($Array.length -lt $ObjectLimit){
+                $numberOfObj = $Array.length
+            }
             #The variable of the number of objects to skip becomes the number of objects multipled by current interaction value minus 1
             $varSkip = $numberOfObj * ($i - 1)
         }else{
@@ -724,7 +728,7 @@ Function Get-TeamsUsageReport{
 
     Write-Log -Status "Info" -Message "Starting the request for all users in Azure AD"
     #Send graph api request against users api to get UPN and Department in order to parse department agains users in the reports collected above
-    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,displayName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation&`$top=999"
+    $users = Send-GraphRequest -Method Get -BearerToken $accessToken -Path "/users?`$select=userPrincipalName,displayName,accountEnabled,city,companyName,country,department,jobTitle,officeLocation,postalCode,state,streetAddress,usageLocation"
     Write-Log -Status "Info" -Message "Finish the collection of all users in Azure AD"
 
     #Beta function - multi-thread
